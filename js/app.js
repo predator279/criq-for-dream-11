@@ -113,6 +113,31 @@ class CricIQApp {
     if (closeBtn) closeBtn.addEventListener('click', closeModal);
     if (dismissBtn) dismissBtn.addEventListener('click', closeModal);
 
+    // Timeline over navigation (prev/next over scrolling)
+    const prevOverBtn = document.getElementById('btn-prev-over');
+    const nextOverBtn = document.getElementById('btn-next-over');
+    const scrollWrapper = document.querySelector('.timeline-scroll-wrapper');
+
+    if (prevOverBtn && scrollWrapper) {
+      prevOverBtn.addEventListener('click', () => {
+        scrollWrapper.scrollBy({ left: -190, behavior: 'smooth' });
+        setTimeout(() => this.updateTimelineNavButtons(), 300);
+      });
+    }
+
+    if (nextOverBtn && scrollWrapper) {
+      nextOverBtn.addEventListener('click', () => {
+        scrollWrapper.scrollBy({ left: 190, behavior: 'smooth' });
+        setTimeout(() => this.updateTimelineNavButtons(), 300);
+      });
+    }
+
+    if (scrollWrapper) {
+      scrollWrapper.addEventListener('scroll', () => {
+        this.updateTimelineNavButtons();
+      }, { passive: true });
+    }
+
     this.el['btn-save-api-key'].addEventListener('click', () => {
       const key = this.el['api-key-input'].value.trim();
       if (key) {
@@ -301,6 +326,9 @@ class CricIQApp {
     this.el['commentary-feed'].innerHTML = '';
     this.lastBallOver = -1;
     this.engine.lastLiveState = null;
+    const overBadge = document.getElementById('current-over-badge');
+    if (overBadge) overBadge.textContent = 'Over 1';
+    this.updateTimelineNavButtons();
 
     // New commentary placeholder.
     const entry = document.createElement('div');
@@ -417,20 +445,62 @@ class CricIQApp {
   }
 
   addBallToTimeline(ball, index) {
-    // Over separator when a new over starts (and not the very first ball)
-    if (ball.over !== this.lastBallOver && index !== 0) {
-      const sep = document.createElement('div');
-      sep.className = 'over-separator';
-      this.el['ball-timeline'].appendChild(sep);
+    const timeline = this.el['ball-timeline'];
+    if (!timeline) return;
+
+    // Identify which over bucket (e.g. over 0, over 1, ...)
+    const overNum = ball.over !== undefined ? ball.over : Math.floor(index / 6);
+    let overGroup = document.getElementById(`over-group-${overNum}`);
+
+    if (!overGroup) {
+      overGroup = document.createElement('div');
+      overGroup.id = `over-group-${overNum}`;
+      overGroup.className = 'over-group';
+      overGroup.dataset.over = overNum;
+
+      const label = document.createElement('span');
+      label.className = 'over-group-label';
+      label.textContent = `Ov ${overNum + 1}`;
+      overGroup.appendChild(label);
+
+      timeline.appendChild(overGroup);
     }
-    this.lastBallOver = ball.over;
+
+    // Mark previous groups inactive and highlight the latest active over
+    timeline.querySelectorAll('.over-group').forEach(g => g.classList.remove('active-over'));
+    overGroup.classList.add('active-over');
+
+    // Update the over badge in the header
+    const overBadge = document.getElementById('current-over-badge');
+    if (overBadge) {
+      overBadge.textContent = `Over ${overNum + 1}`;
+    }
 
     const circle = document.createElement('div');
     circle.className = 'ball-circle pop-in ' + this.ballTypeClass(ball);
     circle.textContent = this.ballDisplayText(ball);
     circle.title = `${ball.overDisplay} · ${ball.bowler} to ${ball.batsmanOnStrike}`;
-    this.el['ball-timeline'].appendChild(circle);
-    this.el['ball-timeline'].scrollLeft = this.el['ball-timeline'].scrollWidth;
+    overGroup.appendChild(circle);
+
+    // Smoothly scroll the container to bring the active over into focus
+    const wrapper = document.querySelector('.timeline-scroll-wrapper');
+    if (wrapper) {
+      wrapper.scrollTo({
+        left: overGroup.offsetLeft - 16,
+        behavior: 'smooth'
+      });
+    }
+    this.updateTimelineNavButtons();
+  }
+
+  updateTimelineNavButtons() {
+    const wrapper = document.querySelector('.timeline-scroll-wrapper');
+    const prevBtn = document.getElementById('btn-prev-over');
+    const nextBtn = document.getElementById('btn-next-over');
+    if (!wrapper || !prevBtn || !nextBtn) return;
+
+    prevBtn.disabled = wrapper.scrollLeft <= 5;
+    nextBtn.disabled = wrapper.scrollLeft + wrapper.clientWidth >= wrapper.scrollWidth - 5;
   }
 
   ballTypeClass(ball) {

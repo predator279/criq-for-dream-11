@@ -608,9 +608,10 @@ class LivePollingProvider {
   /**  
    * Update polling cadence (ms). Restarts the timer if already polling.
    */  
-  setPollInterval(ms) {  
-    const interval = Math.max(2000, Number(ms) || 5000);  
-    this.pollInterval = interval;  
+  setPollInterval(ms) {
+    // Free CricAPI tier = 100 hits/day; poll no faster than one hit per 10 s so
+    // continuous watching doesn't burn the quota in minutes.
+    const interval = Math.max(10000, Number(ms) || 15000);
     if (this.isPolling) {  
       this.stop();  
       this.start(this.onStateUpdate, this.onMatchEnd);  
