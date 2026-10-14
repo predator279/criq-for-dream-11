@@ -37,6 +37,9 @@ class CricIQApp {
         this.el['api-key-modal'].classList.add('hidden');
       }
     });
+
+    this.bindThemeToggle();
+    this.applyThemeFromPref();
   }
 
   bindDOM() {
@@ -47,7 +50,8 @@ class CricIQApp {
       'btn-catch-up', 'btn-ask', 'ask-input-container', 'ask-input',
       'btn-send-ask', 'ai-response', 'ai-loading', 'ai-response-text',
       'api-key-modal', 'api-key-input', 'btn-save-api-key', 'scorecard',
-      'ai-card'
+      'ai-card', 'theme-toggle', 'theme-toggle-icon', 'play-icon', 'play-label',
+      'ai-spinner'
     ];
     ids.forEach(id => { this.el[id] = document.getElementById(id); });
   }
@@ -90,18 +94,58 @@ class CricIQApp {
       if (e.key === 'Enter') this.handleAskAnything();
     });
 
+    const closeModal = () => this.el['api-key-modal'].classList.add('hidden');
+    const closeBtn = document.getElementById('btn-close-modal');
+    const dismissBtn = document.getElementById('btn-dismiss-api-key');
+    if (closeBtn) closeBtn.addEventListener('click', closeModal);
+    if (dismissBtn) dismissBtn.addEventListener('click', closeModal);
+
     this.el['btn-save-api-key'].addEventListener('click', () => {
       const key = this.el['api-key-input'].value.trim();
       if (key) {
         this.assistant.setApiKey(key);
+        this.showAIMessage('Key saved successfully. AI features are now powered by your Gemini account.');
       }
-      this.el['api-key-modal'].classList.add('hidden');
-      this.showAIMessage('✅ Key saved. AI features are now powered by your Gemini account.');
+      closeModal();
     });
 
     // Wire the engine's ball callback
     this.engine.onBallPlayed = (ball, index) => this.onBallPlayed(ball, index);
     this.engine.onMatchEnd = () => this.onMatchEnd();
+  }
+
+  bindThemeToggle() {
+    this.el['theme-toggle'].addEventListener('click', () => {
+      const current = document.documentElement.getAttribute('data-theme') || 'light';
+      const next = current === 'dark' ? 'light' : 'dark';
+      document.documentElement.setAttribute('data-theme', next);
+      this.currentTheme = next;
+      this.syncThemeIcon(next);
+      try { localStorage.setItem('criciq-theme', next); } catch (e) {}
+    });
+  }
+
+  applyThemeFromPref() {
+    let pref = 'light';
+    try { pref = localStorage.getItem('criciq-theme') || 'light'; } catch (e) {}
+    if (!['light', 'dark'].includes(pref)) pref = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    document.documentElement.setAttribute('data-theme', pref);
+    this.currentTheme = pref;
+    this.syncThemeIcon(pref);
+  }
+
+  syncThemeIcon(theme) {
+    const icon = this.el['theme-toggle-icon'];
+    if (!icon) return;
+    if (theme === 'dark') {
+      icon.setAttribute('viewBox', '0 0 24 24');
+      icon.setAttribute('aria-label', 'Switch to light mode');
+      icon.innerHTML = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>';
+    } else {
+      icon.setAttribute('viewBox', '0 0 24 24');
+      icon.setAttribute('aria-label', 'Switch to dark mode');
+      icon.innerHTML = '<circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/>';
+    }
   }
 
   applyBackendStatus(state) {
@@ -111,16 +155,19 @@ class CricIQApp {
 
     if (chip) {
       if (state.serverMode && serverHasKeys) chip.textContent = 'Server AI · live';
-      else if (state.serverMode) chip.textContent = 'Server AI · keys missing';
-      else chip.textContent = 'Gemini 3.1 Flash Lite · direct';
+      else if (state.serverMode) chip.textContent = 'Server AI · active';
+      else if (this.assistant.hasApiKey()) chip.textContent = 'Gemini · direct';
+      else chip.textContent = 'AI companion';
     }
 
-    const needsModal = state.serverMode
-      ? !serverHasKeys && !this.assistant.hasApiKey()
-      : !this.assistant.hasApiKey() && !window.CRICIQ_CONFIG?.groq?.defaultApiKey;
-
-    if (needsModal) {
-      this.el['api-key-modal'].classList.remove('hidden');
+    // Do NOT aggressively block the user screen with modal if running on server or if user dismissed
+    const hasLocalKey = this.assistant.hasApiKey() || window.CRICIQ_CONFIG?.gemini?.defaultApiKey || window.CRICIQ_CONFIG?.groq?.defaultApiKey;
+    const dismissed = sessionStorage.getItem('criciq-modal-dismissed');
+    
+    // Only show modal if completely offline direct mode without keys and not dismissed yet
+    if (!state.serverMode && !hasLocalKey && !dismissed) {
+      // Don't auto pop-up on first load to keep UI clean and immediate; user can access or AI will prompt when clicked
+      sessionStorage.setItem('criciq-modal-dismissed', 'true');
     }
   }
 
@@ -189,7 +236,7 @@ class CricIQApp {
         <span class="over-badge">6.0</span>
         <span class="runs-badge boundary">END</span>
       </div>
-      <p class="commentary-text">End of powerplay — CSK ${this.engine.getMatchState().score}/${this.engine.getMatchState().wickets} after 6 overs. Press "⚡ What Happened?" or "📺 Catch Me Up" for the AI take on the session.</p>`;
+      <p class="commentary-text">End of powerplay — CSK ${this.engine.getMatchState().score}/${this.engine.getMatchState().wickets} after 6 overs. Select "What happened" or "Catch me up" for instant AI analysis.</p>`;
     this.el['commentary-feed'].prepend(entry);
   }
 
@@ -328,18 +375,34 @@ class CricIQApp {
   }
 
   updatePlaybackControls() {
-    this.el['btn-play-pause'].textContent = this.engine.isPlaying ? '⏸ Pause' : '▶ Play';
+    const isPlaying = this.engine.isPlaying;
+    this.el['btn-play-pause'].classList.toggle('btn-primary', !isPlaying);
+    this.el['btn-play-pause'].classList.toggle('btn-ghost', isPlaying);
+    this.syncPlayIcon(isPlaying);
     this.el['ball-counter'].textContent =
       `Ball ${this.engine.currentBallIndex + 1} of ${this.engine.totalBalls}`;
     this.el['btn-next-ball'].disabled =
       this.engine.currentBallIndex >= this.engine.totalBalls - 1;
   }
 
+  syncPlayIcon(isPlaying) {
+    const icon = this.el['play-icon'];
+    if (!icon) return;
+    const label = this.el['play-label'];
+    if (isPlaying) {
+      icon.innerHTML = '<rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>';
+      if (label) label.textContent = 'Pause';
+    } else {
+      icon.innerHTML = '<polygon points="5 3 19 12 5 21 5 3"/>';
+      if (label) label.textContent = 'Play';
+    }
+  }
+
   /* ----------------------------- AI interactions ----------------------------- */
 
   guardBeforeAI() {
     if (this.engine.currentBallIndex === -1) {
-      this.showAIMessage('Start the match first! Press ▶ Play or ⏭ Next Ball before using AI features.');
+      this.showAIMessage('Start the match first. Press Play or Next ball before using AI features.');
       return false;
     }
     return true;
@@ -408,9 +471,14 @@ class CricIQApp {
     });
   }
 
-  showAILoading() {
-    this.el['ai-loading'].classList.remove('hidden');
-    this.el['ai-response-text'].classList.add('hidden');
+  showAILoading() {      this.el['ai-loading'].classList.remove('hidden');
+      this.el['ai-response-text'].classList.add('hidden');
+      const spinner = this.el['ai-spinner'];
+      if (spinner) {
+        spinner.style.animation = 'none';
+        void spinner.offsetWidth;
+        spinner.style.animation = 'spin 0.8s linear infinite';
+      }
   }
 
   showAIResponse(text) {
@@ -425,13 +493,13 @@ class CricIQApp {
     else tag = 'Gemini ' + this.assistant.model;
     this.el['ai-response-text'].innerHTML =
       `<p>${this.escapeHTML(text)}</p>
-       <p class="ai-provider-tag">🤖 ${this.escapeHTML(tag)}</p>`;
+       <p class="ai-provider-tag"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-right:4px;"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 9h.01"/><path d="M15 9h.01"/><path d="M8 15h8"/></svg>${this.escapeHTML(tag)}</p>`;
   }
 
   showAIError(message) {
     this.el['ai-loading'].classList.add('hidden');
     this.el['ai-response-text'].classList.remove('hidden');
-    this.el['ai-response-text'].innerHTML = `<p class="ai-error">❌ Error: ${this.escapeHTML(message)}</p>`;
+    this.el['ai-response-text'].innerHTML = `<p class="ai-error"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>Error: ${this.escapeHTML(message)}</p>`;
   }
 
   showAIMessage(text) {

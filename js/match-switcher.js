@@ -57,47 +57,46 @@ class MatchSwitcher {
       <div class="match-columns">  
         <div class="match-column" id="match-ribbon-live">  
           <div class="column-header live">  
-            <span class="column-icon">🔴</span>  
+            <span class="column-icon"><svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10"/></svg></span>  
             <span class="column-title">LIVE</span>  
           </div>  
           <div class="column-matches"></div>  
         </div>  
         <div class="match-column" id="match-ribbon-upcoming">  
           <div class="column-header upcoming">  
-            <span class="column-icon">⚪</span>  
+            <span class="column-icon"><svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></span>  
             <span class="column-title">UPCOMING</span>  
           </div>  
           <div class="column-matches"></div>  
         </div>  
         <div class="match-column" id="match-ribbon-completed">  
           <div class="column-header completed">  
-            <span class="column-icon">🟢</span>  
+            <span class="column-icon"><svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>  
             <span class="column-title">COMPLETED</span>  
           </div>  
           <div class="column-matches"></div>  
         </div>  
         <div class="match-column" id="match-ribbon-demo">  
           <div class="column-header demo">  
-            <span class="column-icon">🧪</span>  
+            <span class="column-icon"><svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2v7.31"/><path d="M14 2v7.31"/><path d="M8.5 2h7"/><path d="M14 9.3a6.5 6.5 0 1 1-4 0"/></svg></span>  
             <span class="column-title">DEMO</span>  
           </div>  
           <div class="column-matches"></div>  
         </div>  
       </div>  
       <div id="fallback-banner" class="fallback-banner hidden">  
-        <span>⚠️ No live matches currently on. Running simulated demo match for testing.</span>  
+        <span><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px;"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>No live matches currently in progress. Running simulated IPL qualifier demo.</span>  
       </div>  
       <div id="no-live-banner" class="no-live-banner hidden">  
-        <span>Fetching live matches...</span>  
+        <span>Fetching live match data…</span>  
       </div>  
     `;  
 
-    // Insert at the beginning of header (before header-content)  
-    const headerContent = header.querySelector('.header-content');  
-    if (headerContent && headerContent.parentNode === header) {  
-      header.insertBefore(ribbon, headerContent);  
-    } else {  
-      header.prepend(ribbon);  
+    // Insert AFTER app-header so Product Title is always at the top
+    if (header.parentNode) {
+      header.parentNode.insertBefore(ribbon, header.nextSibling);
+    } else {
+      header.appendChild(ribbon);
     }  
 
     // Add styles for match ribbon  
@@ -120,11 +119,11 @@ class MatchSwitcher {
     const styles = document.createElement('style');  
     styles.textContent = `  
       .match-ribbon {  
-        background: var(--bg-card);  
+        background: var(--surface);  
         border-radius: var(--radius);  
         padding: 12px;  
         margin-bottom: 12px;  
-        border: 1px solid rgba(255,255,255,0.06);  
+        border: 1px solid var(--hairline);  
         box-shadow: var(--shadow-card);  
       }  
 
@@ -134,20 +133,20 @@ class MatchSwitcher {
         justify-content: space-between;  
         margin-bottom: 10px;  
         padding-bottom: 8px;  
-        border-bottom: 1px solid rgba(255,255,255,0.06);  
+        border-bottom: 1px solid var(--hairline);  
       }  
 
       .match-ribbon-title {  
-        font-size: 0.75rem;  
+        font-size: 0.72rem;  
         font-weight: 700;  
-        letter-spacing: 1px;  
-        color: var(--text-muted);  
+        letter-spacing: 0.08em;  
+        color: var(--ink-3);  
         text-transform: uppercase;  
       }  
 
       .match-ribbon-subtitle {  
         font-size: 0.7rem;  
-        color: var(--text-muted);  
+        color: var(--ink-3);  
       }  
 
       .match-columns {  
@@ -163,44 +162,45 @@ class MatchSwitcher {
       .column-header {  
         display: flex;  
         align-items: center;  
-        gap: 4px;  
+        gap: 5px;  
         margin-bottom: 6px;  
         font-size: 0.65rem;  
         font-weight: 700;  
-        letter-spacing: 0.5px;  
+        letter-spacing: 0.05em;  
         text-transform: uppercase;  
-        padding: 2px 6px;  
+        padding: 3px 6px;  
         border-radius: 4px;  
       }  
 
       .column-header.live {  
-        color: var(--accent-red);  
-        background: rgba(231,76,60,0.15);  
+        color: #b4231f;  
+        background: rgba(220, 38, 38, 0.08);  
       }  
 
       .column-header.upcoming {  
-        color: var(--text-secondary);  
-        background: rgba(255,255,255,0.05);  
+        color: var(--ink-2);  
+        background: var(--bg);  
       }  
 
       .column-header.completed {  
-        color: var(--accent-green);  
-        background: rgba(46,204,113,0.15);  
+        color: #1f8a4c;  
+        background: rgba(31, 138, 76, 0.08);  
       }  
 
       .column-header.demo {  
-        color: var(--accent-yellow);  
-        background: rgba(241,196,15,0.15);  
+        color: var(--ink-2);  
+        background: var(--accent-lime-soft);  
       }  
 
       .column-icon {  
-        font-size: 0.8rem;  
+        display: inline-flex;  
+        align-items: center;  
       }  
 
       .column-matches {  
         display: flex;  
         flex-direction: column;  
-        gap: 4px;  
+        gap: 5px;  
         max-height: 120px;  
         overflow-y: auto;  
       }  
@@ -210,14 +210,14 @@ class MatchSwitcher {
       }  
 
       .column-matches::-webkit-scrollbar-thumb {  
-        background: rgba(255,255,255,0.15);  
+        background: var(--hairline-strong);  
         border-radius: 2px;  
       }  
 
       .match-card {  
-        background: rgba(255,255,255,0.03);  
-        border: 1px solid rgba(255,255,255,0.06);  
-        border-radius: 6px;  
+        background: var(--bg);  
+        border: 1px solid var(--hairline);  
+        border-radius: var(--radius-sm);  
         padding: 8px 10px;  
         cursor: pointer;  
         transition: all 0.2s ease;  
@@ -225,47 +225,46 @@ class MatchSwitcher {
       }  
 
       .match-card:hover {  
-        background: rgba(255,255,255,0.06);  
-        border-color: var(--accent-blue);  
+        background: var(--surface-strong);  
+        border-color: var(--accent);  
       }  
 
       .match-card.live {  
-        border-left: 3px solid var(--accent-red);  
+        border-left: 3px solid #b4231f;  
       }  
 
       .match-card.upcoming {  
-        border-left: 3px solid var(--text-muted);  
+        border-left: 3px solid var(--ink-3);  
       }  
 
       .match-card.completed {  
-        border-left: 3px solid var(--accent-green);  
+        border-left: 3px solid #1f8a4c;  
       }  
 
       .match-card.demo {  
-        border-left: 3px solid var(--accent-yellow);  
-        background: rgba(241,196,15,0.05);  
+        border-left: 3px solid var(--accent-lime);  
+        background: var(--accent-lime-soft);  
       }  
 
       .match-card.selected {  
-        background: rgba(74,144,217,0.15);  
-        border-color: var(--accent-blue);  
-        box-shadow: 0 0 10px rgba(74,144,217,0.2);  
+        background: var(--accent-soft);  
+        border-color: var(--accent);  
       }  
 
       .match-card-team {  
         font-weight: 700;  
-        color: var(--text-primary);  
+        color: var(--ink);  
         margin-bottom: 2px;  
       }  
 
       .match-card-vs {  
-        color: var(--text-muted);  
+        color: var(--ink-3);  
         font-size: 0.65rem;  
       }  
 
       .match-card-status {  
         font-size: 0.6rem;  
-        color: var(--text-muted);  
+        color: var(--ink-3);  
         text-transform: uppercase;  
         letter-spacing: 0.5px;  
         margin-top: 4px;  
@@ -273,7 +272,7 @@ class MatchSwitcher {
 
       .match-card-score {  
         font-weight: 700;  
-        color: var(--accent-yellow);  
+        color: var(--accent);  
         font-size: 0.7rem;  
         margin-top: 2px;  
       }  
@@ -551,7 +550,7 @@ class MatchSwitcher {
     } else if (type === 'upcoming') {  
       statusHtml = `<div class="match-card-time">${match.date || 'TBD'}</div>`;  
     } else if (type === 'demo') {  
-      statusHtml = `<div class="match-card-status">🧪 DEMO</div>`;  
+      statusHtml = `<div class="match-card-status">DEMO</div>`;  
     }  
 
     card.innerHTML = `  
@@ -626,11 +625,11 @@ class MatchSwitcher {
     const el = document.getElementById('data-source-info');  
     if (el) {  
       if (source === 'Live API') {  
-        el.textContent = '📡 Data Source: Live Cricket API';  
+        el.textContent = 'Data source: Live Cricket API';  
       } else if (source.startsWith('Live match:')) {  
-        el.textContent = `📡 Data Source: Live Match (${source.replace('Live match: ', '')})`;  
+        el.textContent = `Data source: Live Match (${source.replace('Live match: ', '')})`;  
       } else {  
-        el.textContent = `📡 Data Source: ${source}`;  
+        el.textContent = `Data source: ${source}`;  
       }  
     }  
   }  

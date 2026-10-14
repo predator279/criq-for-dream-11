@@ -1,169 +1,236 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>CricIQ — AI Match Companion</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏏</text></svg>">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%230b4f6c' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='12' cy='12' r='10'/><path d='m4.93 4.93 4.24 4.24'/><path d='m14.83 9.17 4.24-4.24'/><path d='m14.83 14.83 4.24 4.24'/><path d='m9.17 14.83-4.24 4.24'/><circle cx='12' cy='12' r='4'/></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400..700;1,6..72,400..700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
   <div class="app-container">
-    <!-- Section 1: Header -->
-    <header id="app-header" class="app-header">
+
+    <!-- Header -->
+    <header class="card app-header" id="app-header" aria-label="Application header">
       <div class="header-content">
         <div class="header-brand">
-          <h1 class="app-title">🏏 CricIQ</h1>
-          <p class="subtitle">AI-Powered Match Companion</p>
+          <h1 class="app-title">
+            <svg class="brand-icon" xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="m4.93 4.93 4.24 4.24"/><path d="m14.83 9.17 4.24-4.24"/><path d="m14.83 14.83 4.24 4.24"/><path d="m9.17 14.83-4.24 4.24"/><circle cx="12" cy="12" r="4"/></svg>
+            <span>CricIQ</span>
+          </h1>
+          <p class="subtitle">Live match companion</p>
         </div>
-        <div class="header-status">
-          <span class="live-badge"><span class="pulse-dot"></span>LIVE</span>
+
+        <div style="display:flex;align-items:center;gap:8px;">
+          <button id="theme-toggle" class="icon-btn theme-toggle" aria-label="Toggle light or dark mode">
+            <!-- Lucide: Sun -->
+            <svg id="theme-toggle-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>
+          </button>
+          <span class="live-badge" aria-label="Match is live">
+            <span class="pulse-dot" aria-hidden="true"></span>
+            Live
+          </span>
         </div>
       </div>
     </header>
 
-    <!-- Section 2: Match Info Bar -->
-    <section id="match-info" class="card match-info-card" aria-label="Match Information">
-      <div class="match-info-row">
-        <span class="match-meta-primary">Wankhede Stadium, Mumbai · May 26, 2024</span>
-        <span class="match-meta-secondary">IPL 2024 · Qualifier 1</span>
-      </div>
-      <div class="match-toss-row">
-        <span class="toss-icon">🪙</span>
-        <span class="toss-text">CSK won the toss and elected to bat first</span>
-      </div>
-    </section>
-
-    <!-- Section 3: Scorecard -->
-    <section id="scorecard" class="card scorecard-card" aria-label="Live Scorecard">
-      <div class="scorecard-top">
-        <div class="team-score">
-          <span class="team-name csk-tag">CSK</span>
-          <span id="team-score" class="score">0/0</span>
-          <span id="team-overs" class="overs">(0.0 ov)</span>
-        </div>
-        <div class="score-meta-badge">
-          <span class="score-status-label">Powerplay</span>
-        </div>
-      </div>
-
-      <div class="scorecard-details">
-        <div class="batsmen-info">
-          <div id="batsman-strike" class="batsman active">
-            <span class="strike-marker">●</span> Ruturaj Gaikwad 0* (0)
+    <!-- Main Content Layout (Spreads into two responsive columns on desktop/tablet) -->
+    <div class="main-layout-grid">
+      <div class="left-col">
+        <!-- Match info -->
+        <section class="card match-info-card" aria-label="Match information">
+          <div class="match-info-row">
+            <span class="match-meta-primary">Wankhede Stadium, Mumbai · May 26, 2024</span>
+            <span class="match-meta-secondary">IPL 2024 · Qualifier 1</span>
           </div>
-          <div id="batsman-nonstrike" class="batsman">
-            Devon Conway 0 (0)
+          <div class="toss-row">
+            <!-- Lucide: Circle -->
+            <svg class="toss-icon" xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l2 2"/></svg>
+            <span class="toss-text">CSK won the toss and elected to bat first</span>
           </div>
-        </div>
-        <div class="bowler-wrap">
-          <div id="bowler-info" class="bowler-info">
-            Jasprit Bumrah 0-0-0-0
+        </section>
+
+        <!-- Scorecard -->
+        <section class="card scorecard-card" aria-label="Live scorecard">
+          <div class="scorecard-top">
+            <div class="team-score">
+              <span class="team-name csk-tag">CSK</span>
+              <span id="team-score" class="score">0/0</span>
+              <span id="team-overs" class="overs">(0.0 ov)</span>
+            </div>
+            <div class="score-meta-badge">
+              <span class="score-status-label">Powerplay</span>
+            </div>
           </div>
-        </div>
-      </div>
-    </section>
 
-    <!-- Section 4: Ball Timeline -->
-    <section class="card timeline-card" aria-label="Ball-by-Ball Timeline">
-      <div class="card-header-bar">
-        <span class="section-title">THIS INNINGS</span>
-        <span class="section-hint">Scroll for history →</span>
-      </div>
-      <div id="ball-timeline" class="ball-timeline">
-        <!-- Ball circles and over separators populated dynamically by MatchEngine -->
-      </div>
-    </section>
-
-    <!-- Section 5: Commentary Feed -->
-    <section class="card commentary-card" aria-label="Live Commentary">
-      <div class="card-header-bar">
-        <span class="section-title">LIVE COMMENTARY</span>
-        <span class="commentary-feed-indicator">● Real-time</span>
-      </div>
-      <div id="commentary-feed" class="commentary-feed">
-        <div class="commentary-entry">
-          <div class="commentary-header">
-            <span class="over-badge">0.0</span>
-            <span class="runs-badge dot">0</span>
+          <div class="scorecard-details">
+            <div class="batsmen-info">
+              <div id="batsman-strike" class="batsman active">
+                <span class="strike-marker" aria-hidden="true">●</span> Ruturaj Gaikwad 0* (0)
+              </div>
+              <div id="batsman-nonstrike" class="batsman">
+                Devon Conway 0 (0)
+              </div>
+            </div>
+            <div class="bowler-wrap">
+              <div id="bowler-info" class="bowler-info">
+                Jasprit Bumrah 0-0-0-0
+              </div>
+            </div>
           </div>
-          <p class="commentary-text">Match ready to begin. Press ▶ Play or ⏭ Next Ball below to start the live simulation!</p>
-        </div>
-      </div>
-    </section>
+        </section>
 
-    <!-- Section 6: Playback Controls -->
-    <section id="playback-controls" class="card controls-card" aria-label="Match Playback Controls">
-      <div class="controls-primary-row">
-        <button id="btn-play-pause" class="btn btn-play" aria-label="Play or pause match simulation">▶ Play</button>
-        <button id="btn-next-ball" class="btn btn-next" aria-label="Step to next ball">⏭ Next Ball</button>
-      </div>
-      <div class="controls-secondary-row">
-        <div class="speed-selector-group">
-          <label for="speed-selector" class="speed-label">Speed:</label>
-          <select id="speed-selector" class="speed-select" aria-label="Simulation speed">
-            <option value="3000">Fast (3s)</option>
-            <option value="5000">Medium (5s)</option>
-            <option value="8000" selected>Normal (8s)</option>
-            <option value="10000">Slow (10s)</option>
-          </select>
-        </div>
-        <span id="ball-counter" class="ball-counter">Ball 0 of 37</span>
-      </div>
-    </section>
+        <!-- Timeline -->
+        <section class="card timeline-card" aria-label="Ball-by-ball timeline">
+          <div class="section-header">
+            <span class="section-title">This innings</span>
+            <span class="section-hint">
+              <!-- Lucide: ChevronRight -->
+              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
+              Scroll for history
+            </span>
+          </div>
+          <div id="ball-timeline" class="ball-timeline" role="list" aria-label="Recent deliveries">
+            <!-- Populated by MatchEngine -->
+          </div>
+        </section>
 
-    <!-- Section 7: AI Assistant Panel -->
-    <section id="ai-panel" class="card ai-card" aria-label="AI Assistant Panel">
-      <div class="ai-card-header">
-        <div class="ai-title-group">
-          <h2 class="ai-heading">🤖 CricIQ AI Companion</h2>
-          <span class="ai-chip">Gemini 3.1 Flash Lite</span>
-        </div>
-        <p class="ai-desc">Instant clarity on confusing decisions, missed overs, and match insights.</p>
-      </div>
-
-      <div class="ai-buttons">
-        <button id="btn-what-happened" class="ai-btn ai-btn-blue">⚡ What Happened?</button>
-        <button id="btn-catch-up" class="ai-btn ai-btn-green">📺 Catch Me Up</button>
-        <button id="btn-ask" class="ai-btn ai-btn-purple">💬 Ask Anything</button>
-      </div>
-
-      <div id="ask-input-container" class="ask-input-container hidden">
-        <div class="ask-box">
-          <input type="text" id="ask-input" class="ask-input" placeholder="Ask about rules, DRS, players, or stats..." autocomplete="off">
-          <button id="btn-send-ask" class="btn-ask-send" aria-label="Submit question to CricIQ">Send</button>
-        </div>
+        <!-- Playback controls -->
+        <section class="card controls-card" aria-label="Playback controls">
+          <div class="controls-primary-row">
+            <button id="btn-play-pause" class="btn btn-primary" aria-label="Play or pause match simulation">
+              <!-- Lucide: Play (swapped to Pause when playing) -->
+              <svg id="play-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+              <span id="play-label">Play</span>
+            </button>
+            <button id="btn-next-ball" class="btn btn-ghost" aria-label="Step to next ball">
+              <!-- Lucide: Forward -->
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="7 4 15 12 7 20 7 4"/><path d="M15 4v16"/></svg>
+              Next ball
+            </button>
+          </div>
+          <div class="controls-secondary-row">
+            <div class="speed-group">
+              <label for="speed-selector" class="speed-label">Speed</label>
+              <select id="speed-selector" class="speed-select" aria-label="Simulation speed">
+                <option value="3000">Fast (3s)</option>
+                <option value="5000">Medium (5s)</option>
+                <option value="8000" selected>Normal (8s)</option>
+                <option value="10000">Slow (10s)</option>
+              </select>
+            </div>
+            <span id="ball-counter" class="ball-counter">Ball 0 of 37</span>
+          </div>
+        </section>
       </div>
 
-      <div id="ai-response" class="ai-response">
-        <div id="ai-loading" class="ai-loading hidden">
-          <div class="spinner"></div>
-          <span class="loading-text">Thinking...</span>
-        </div>
-        <div id="ai-response-text" class="ai-response-text ai-response-content">
-          <p class="ai-empty-prompt">Select an AI action above or ask a question to get instant, conversational cricket analysis.</p>
-        </div>
-      </div>
-    </section>
+      <div class="right-col">
+        <!-- AI panel -->
+        <section class="card ai-card" aria-label="AI assistant">
+          <div class="ai-card-header">
+            <div class="ai-title-group">
+              <h2 class="ai-heading">
+                <!-- Lucide: Sparkle -->
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5z"/><path d="M12 21v-3"/></svg>
+                CricIQ assistant
+              </h2>
+              <span class="ai-chip">Gemini 3.1 Flash Lite</span>
+            </div>
+            <p class="ai-desc">Fast clarity on decisions, missed overs, and match context.</p>
+          </div>
 
-    <!-- Section 8: Footer -->
-    <footer id="app-footer" class="app-footer">
-      <p id="data-source-info" class="data-source-info">📡 Data Source: Simulated Demo</p>
+          <div class="ai-buttons">
+            <button id="btn-what-happened" class="ai-btn ai-btn-accent" aria-label="Summarize what happened in the session">
+              <!-- Lucide: FileText -->
+              <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 2H9.5a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h10.5a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="9.5" y1="12" x2="14.5" y2="12"/><line x1="9.5" y1="16" x2="14.5" y2="16"/></svg>
+              <span class="ai-btn-label">What happened</span>
+              <span class="ai-btn-count">Session</span>
+            </button>
+            <button id="btn-catch-up" class="ai-btn" aria-label="Catch up on the match so far">
+              <!-- Lucide: PlayCircle -->
+              <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg>
+              <span class="ai-btn-label">Catch me up</span>
+              <span class="ai-btn-count">Fast</span>
+            </button>
+            <button id="btn-ask" class="ai-btn" aria-label="Ask a free question about the match">
+              <!-- Lucide: MessageCircle -->
+              <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5a8.5 8.5 0 1 1-17 0 8.5 8.5 0 0 1 17 0z"/><path d="M8.5 13.5h7"/></svg>
+              <span class="ai-btn-label">Ask anything</span>
+            </button>
+          </div>
+
+          <div id="ask-input-container" class="ask-input-container hidden">
+            <div class="ask-box">
+              <input type="text" id="ask-input" class="ask-input" placeholder="Rules, DRS, players, stats…" autocomplete="off" aria-label="Ask about the match">
+              <button id="btn-send-ask" class="btn-ask-send" aria-label="Send question to CricIQ">
+                <!-- Lucide: Send -->
+                <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                Send
+              </button>
+            </div>
+          </div>
+
+          <div id="ai-response" class="ai-response" aria-live="polite">
+            <div id="ai-loading" class="ai-loading hidden">
+              <!-- Lucide: Loader2 -->
+              <svg class="spinner" id="ai-spinner" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="color:var(--accent);animation:spin 0.8s linear infinite;"><path d="M12 2v4"/><path d="M12 18v4"/><path d="M4.93 4.93l2.83 2.83"/><path d="M16.24 16.24l2.83 2.83"/><path d="M2 12h4"/><path d="M18 12h4"/><path d="M4.93 19.07l2.83-2.83"/><path d="M16.24 7.76l2.83-2.83"/></svg>
+              <span class="loading-text" style="color:var(--accent);font-weight:600;">Thinking…</span>
+            </div>
+            <div id="ai-response-text" class="ai-response-text ai-response-content hidden">
+              <p class="ai-empty-prompt">Select an action above or ask a question for instant cricket context.</p>
+            </div>
+          </div>
+        </section>
+
+        <!-- Commentary -->
+        <section class="card commentary-card" aria-label="Live commentary">
+          <div class="section-header">
+            <span class="section-title">Live commentary</span>
+            <span class="commentary-feed-indicator" style="font-size:0.72rem;color:var(--accent);font-weight:600;">● Real-time</span>
+          </div>
+          <div id="commentary-feed" class="commentary-feed">
+            <div class="commentary-entry">
+              <div class="commentary-header">
+                <span class="over-badge">0.0</span>
+                <span class="runs-badge dot">0</span>
+              </div>
+              <p class="commentary-text">Match ready to begin. Press <strong>Play</strong> or <strong>Next ball</strong> below to start the live simulation.</p>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="app-footer">
+      <p class="data-source-info">Data source: simulated demo</p>
       <p class="footer-credit">Built for Dream11 · Powered by Gemini AI</p>
     </footer>
   </div>
 
-  <!-- Section 9: API Key Modal (overlay) -->
+  <!-- API key modal (optional manual override) -->
   <div id="api-key-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="modal-title">
     <div class="modal-content">
-      <div class="modal-header-badge">🔑</div>
-      <h2 id="modal-title">Enter Gemini API Key</h2>
-      <p>Your key powers the AI when this app runs without a server. On the hosted version, AI is provided securely via a server proxy — this dialog may simply be closed.</p>
-      <div class="modal-form-group">
-        <input type="password" id="api-key-input" class="modal-key-input" placeholder="AIzaSy..." autocomplete="off">
+      <button id="btn-close-modal" class="modal-close-btn" aria-label="Close dialog">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+      <div class="modal-icon">
+        <!-- Lucide: Key -->
+        <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 12.5-5 5v-3l5-5"/><path d="M12 3 2 12h3v8"/></svg>
       </div>
-      <button id="btn-save-api-key" class="btn btn-save-key">Save &amp; Start</button>
-      <p class="small">Get a free key at <a href="https://ai.google.dev" target="_blank" rel="noopener noreferrer">ai.google.dev</a></p>
+      <h2 id="modal-title">Local API Key Override</h2>
+      <p>Your backend environment variables on Vercel already power AI securely. You only need to enter a key here if running directly on localhost without a server.</p>
+      <div class="modal-form-group">
+        <input type="password" id="api-key-input" class="modal-key-input" placeholder="AIzaSy… (optional for local only)" autocomplete="off">
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button id="btn-save-api-key" class="btn-save-key" style="flex:1;">Save &amp; apply</button>
+        <button id="btn-dismiss-api-key" class="btn btn-ghost" style="padding:10px 14px;">Skip</button>
+      </div>
+      <p class="small">Keys on Vercel are encrypted and injected automatically.</p>
     </div>
   </div>
 
