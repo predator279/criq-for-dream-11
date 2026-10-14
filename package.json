@@ -1,0 +1,26 @@
+{
+  "name": "dream-11-assignment",
+  "version": "1.0.0",
+  "description": "## What fan problem are you solving?",
+  "main": "index.js",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/predator279/criq-for-dream-11.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/predator279/criq-for-dream-11/issues"
+  },
+  "homepage": "https://github.com/predator279/criq-for-dream-11#readme",
+  "devDependencies": {
+    "serve": "^14.2.6"
+  }
+}

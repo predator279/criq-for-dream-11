@@ -1,0 +1,238 @@
+{
+  "knowledge_base_version": "1.0",
+  "created": "2026-10-14",
+  "description": "Dream11 Fantasy Point System & Cricket Rules Knowledge Base for CricIQ AI Assistant",
+  
+  "dream11_scoring": {
+    "description": "Official Dream11 fantasy point system for IPL and other cricket formats",
+    
+    "batting": {
+      "description": "Points awarded to batsmen based on performance",
+      "points": [
+        {
+          "event": "Runs scored",
+          "rule": "1 point per run scored"
+        },
+        {
+          "event": "Boundary bonus",
+          "rule": "1 additional point for hitting a four (total 2 points for a four)"
+        },
+        {
+          "event": "Six bonus",
+          "rule": "2 additional points for hitting a six (total 3 points per six)"
+        },
+        {
+          "event": "30-run bonus",
+          "rule": "1 point bonus when a batsman scores 30 or more runs"
+        },
+        {
+          "event": "50-run bonus",
+          "rule": "2 point bonus when a batsman scores 50 or more runs"
+        },
+        {
+          "event": "100-run bonus",
+          "rule": "4 point bonus when a batsman scores 100 or more runs"
+        },
+        {
+          "event": "Strike rate bonus (strike rate > 120)",
+          "rule": "+2 points for batsmen who face at least 50 balls and maintain strike rate above 120"
+        },
+        {
+          "event": "Strike rate penalty (strike rate < 60)",
+          "rule": "-2 points for batsmen who face at least 50 balls and have strike rate below 60"
+        }
+      ]
+    },
+    
+    "bowling": {
+      "description": "Points awarded to bowlers based on performance",
+      "points": [
+        {
+          "event": "Wicket taken",
+          "rule": "25 points per wicket"
+        },
+        {
+          "event": "Wicket bonus - caught/bowled/LBW/stumped",
+          "rule": "+4 additional points for wickets taken via caught, bowled, LBW, or stumped (total 29 points)"
+        },
+        {
+          "event": "Wicket bonus - caught and bowled",
+          "rule": "+6 additional points for wickets taken via caught and bowled by the bowler (total 31 points)"
+        },
+        {
+          "event": "3-wicket haul",
+          "rule": "4 point bonus when a bowler takes 3 or more wickets in an innings"
+        },
+        {
+          "event": "4-wicket haul",
+          "rule": "8 point bonus when a bowler takes 4 or more wickets in an innings"
+        },
+        {
+          "event": "5-wicket haul",
+          "rule": "12 point bonus when a bowler takes 5 or more wickets in an innings"
+        },
+        {
+          "event": "Maiden over",
+          "rule": "2 points per maiden over bowled"
+        },
+        {
+          "event": "Economy rate bonus (economy < 6)",
+          "rule": "+2 points for bowlers with economy rate below 6 (minimum 10 overs bowled)"
+        },
+        {
+          "event": "Economy rate bonus (economy 6-8)",
+          "rule": "+1 point for bowlers with economy rate between 6 and 8 (minimum 10 overs bowled)"
+        },
+        {
+          "event": "Economy rate penalty (economy > 10)",
+          "rule": "-2 points for bowlers with economy rate above 10 (minimum 10 overs bowled)"
+        }
+      ]
+    },
+    
+    "fielding": {
+      "description": "Points awarded for fielding efforts",
+      "points": [
+        {
+          "event": "Catch taken",
+          "rule": "6 points per catch"
+        },
+        {
+          "event": "Stumping",
+          "rule": "12 points for a stumping (includes wicket points)"
+        },
+        {
+          "event": "Run-out (direct)",
+          "rule": "12 points for a direct hit run-out"
+        },
+        {
+          "event": "Run-out (assist)",
+          "rule": "6 points for assisting in a run-out"
+        }
+      ]
+    },
+    
+    "negative_points": {
+      "description": "Penalty points for poor performance",
+      "points": [
+        {
+          "event": "Wicket falls (bowler)",
+          "rule": "-2 points for every wicket lost while bowling (does not apply to run-outs)"
+        },
+        {
+          "event": "Run out (own batsman)",
+          "rule": "-6 points if a fielder causes a run-out of their own team's batsman through error"
+        },
+        {
+          "event": "Not outs",
+          "rule": "No penalty for batsmen who remain not out"
+        }
+      ]
+    },
+    
+    "captain_vice_captain": {
+      "description": "Captain and Vice-Captain point multipliers",
+      "rule": "Captain: 2x points | Vice-Captain: 1.5x points"
+    }
+  },
+  
+  "cricket_rules": {
+    "description": "Common cricket rules and concepts explained simply",
+    
+    "dls_method": {
+      "name": "Duckworth-Lewis-Stern (DLS) Method",
+      "explanation": "A mathematical formula used to calculate revised targets in rain-affected limited-overs matches. It considers how many overs and wickets are remaining, and calculates a 'par score' - the score the chasing team should be at to be considered equal. The method recognizes that a team with fewer overs but all wickets in hand may have a higher scoring potential than one with more overs but fewer wickets.",
+      "key_terms": [
+        "Resource percentage: Measures the combined value of remaining overs and wickets",
+        "Par score: The minimum score needed to tie the match",
+        "Target: Par score + 1 for a win"
+      ]
+    },
+    
+    "powerplay": {
+      "name": "Powerplay Rules (T20)",
+      "explanation": "In T20 cricket, the first 6 overs of each innings are called the powerplay. During this phase, only 2 fielders are allowed outside the 30-yard circle. This restriction makes it easier for batters to score boundaries. After the powerplay, 5 fielders are allowed outside the circle.",
+      "variations": {
+        "IPL": "First 6 overs, max 2 fielders outside circle",
+        "ODI": "First 10 overs powerplay, max 2 fielders; middle 30 overs max 4; final 10 overs max 5",
+        "Test": "No powerplay restrictions"
+      }
+    },
+    
+    "lbw": {
+      "name": "Leg Before Wicket (LBW)",
+      "explanation": "A batter is out LBW if the ball would have hit the stumps but was instead intercepted by any part of the batter's body (except the hand holding the bat). For LBW to be given: (1) The ball must pitch in line with the stumps or on the off-side, (2) The impact must be in line with the stumps (unless the batter played a shot), and (3) The ball must be going on to hit the stumps.",
+      "drs_review": "Under DRS (Decision Review System), ball-tracking technology (Hawk-Eye) shows where the ball pitched, where it hit the pad, and whether it would have hit the stumps. If impact is outside off-stump and no shot was played, the batter is usually not out."
+    },
+    
+    "super_over": {
+      "name": "Super Over",
+      "explanation": "A tie-breaking method used in limited-overs cricket when a match ends in a tie. Each team gets one additional over (6 balls) to score as many runs as possible. The team with the higher score in the Super Over wins. Each team nominates 3 batters and 1 bowler for the Super Over. If still tied, another Super Over is played, though some tournaments have other tiebreaker rules.",
+      "history": "First used in IPL 2009, now standard in most T20 leagues including IPL, Big Bash, PSL"
+    },
+    
+    "extras": {
+      "name": "Extras (Extra Runs)",
+      "types": {
+        "wide": "A wide is called when the bowler delivers the ball too far away from the batter for them to normally reach it. Awards 1 run to the batting side plus an extra ball. The batter cannot be out off a wide except stumped, run out, or hit the ball twice.",
+        "noball": "Called for illegal bowling action (overstepped the crease, too many fielders outside circle, bowling arm issues). Awards 1 run plus an extra ball. The same batter faces the re-bowled ball.",
+        "bye": "Runs taken when the batter does not touch the ball with bat or body, but it passes the wicketkeeper and batters run. No credit to batter's score.",
+        "legbye": "Runs taken when the ball hits the batter's body (not the hand holding the bat) and batters run. No credit to batter's score."
+      }
+    },
+    
+    "drs": {
+      "name": "Decision Review System (DRS)",
+      "explanation": "A system allowing teams to challenge umpire decisions using technology. Each team gets a limited number of reviews per innings. The third umpire uses ball-tracking (Hawk-Eye), edge detection (UltraEdge), and ball-station cameras to determine if the decision should be overturned.",
+      "outcomes": {
+        "uphold": "Original decision stands",
+        "overturn": "Decision is reversed",
+        "reviewed_out": "Decision changed to out even if original was not out",
+        "reviewed_not_out": "Decision changed to not out even if original was out"
+      },
+      "lbw_criteria": "For LBW reviews: (1) Ball must not be a no-ball, (2) Ball must hit in line with stumps or batter must not have played a shot, (3) Ball must be going on to hit stumps"
+    }
+  },
+  
+  "ipl_fantasy_tips": {
+    "description": "General tips for Dream11 fantasy team selection",
+    
+    "selection_strategy": [
+      {
+        "context": "Top-order batters in strong batting lineups",
+        "reason": "Higher chance of facing more balls and scoring runs"
+      },
+      {
+        "context": "Bowlers from strong bowling attacks",
+        "reason": "Better chance of taking wickets and bowling maidens"
+      },
+      {
+        "context": "All-rounders as captain/vice-captain",
+        "reason": "Can earn points from both batting and bowling"
+      },
+      {
+        "context": "Wicketkeepers from teams batting first",
+        "reason": "Can score catches and stumpings in addition to batting points"
+      },
+      {
+        "context": "Players facing spinners if pitch is turning",
+        "reason": "Different strategies for different pitch conditions"
+      }
+    ],
+    
+    "pitch_conditions": {
+      "batting_friendly": {
+        "characteristics": "Flat pitch, even bounce, low seam movement",
+        "strategy": "Prioritize aggressive batters, all-rounders, and less bowler points"
+      },
+      "bowling_friendly": {
+        "characteristics": "Green top, swing/movement, uneven bounce",
+        "strategy": "Prioritize top bowlers, wicketkeepers with catching opportunities"
+      },
+      "spin_friendly": {
+        "characteristics": "Dry pitch, dust, turn after 10-15 overs",
+        "strategy": "Prioritize spinner bowlers, batters who handle spin well"
+      }
+    }
+  }
+}

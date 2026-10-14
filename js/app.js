@@ -1,14 +1,23 @@
 /**
  * CricIQ — Main App Controller
- * Wires MatchEngine + AIAssistant + DOM into the live simulation experience.
+ * Wires MatchEngine + AIAssistant + MatchSwitcher + DOM into the live simulation experience.
  */
 
 class CricIQApp {
   constructor() {
     this.engine = new MatchEngine(window.MATCH_DATA);
     this.assistant = new AIAssistant();
+    this.switcher = null;
     this.el = {}; // DOM refs, populated in bindDOM
     this.lastBallOver = -1;
+    this.matchInfo = {
+      team1: 'CSK',
+      team2: 'MI',
+      venue: 'Wankhede Stadium, Mumbai',
+      date: 'May 26, 2024',
+      type: 'IPL 2024 · Qualifier 1',
+      toss: 'CSK won the toss and elected to bat first'
+    };
     this.init();
   }
 
@@ -116,8 +125,43 @@ class CricIQApp {
   }
 
   updateMatchInfo() {
-    // Static info lives in index.html; nothing dynamic required for this build.
-    this.el['ball-counter'].textContent = `Ball 0 of ${this.engine.totalBalls}`;
+    // Update match info from engine state
+    const meta = this.engine.getMatchMeta();
+    if (meta.team1) {
+      this.matchInfo.team1 = meta.team1.short || meta.team1; 
+    }
+    if (meta.team2) {
+      this.matchInfo.team2 = meta.team2.short || meta.team2;
+    }
+    if (meta.venue) {
+      this.matchInfo.venue = meta.venue;
+    }
+    if (meta.date) {
+      this.matchInfo.date = meta.date;
+    }
+    if (meta.type) {
+      this.matchInfo.type = meta.type;
+    }
+    if (meta.toss) {
+      this.matchInfo.toss = meta.toss;
+    }
+
+    // Update DOM
+    const metaPrimary = document.querySelector('.match-meta-primary');
+    const metaSecondary = document.querySelector('.match-meta-secondary');
+    const tossText = document.querySelector('.toss-text');
+    
+    if (metaPrimary) {
+      metaPrimary.textContent = `${this.matchInfo.venue} · ${this.matchInfo.date}`;
+    }
+    if (metaSecondary) {
+      metaSecondary.textContent = this.matchInfo.type;
+    }
+    if (tossText) {
+      tossText.textContent = this.matchInfo.toss;
+    }
+
+    this.el['ball-counter'].textContent = `Ball 0 of ${this.engine.totalBalls || 37}`;
   }
 
   showInitialState() {
@@ -345,9 +389,23 @@ class CricIQApp {
 
     const q = question;
     this.el['ask-input'].value = '';
-    this.runAIFeature(() =>
-      this.assistant.askAnything(q, this.engine.getMatchSummary(), this.engine.getBallsPlayed(), this.engine.getKeyMoments())
-    );
+    
+    // Pass conversation history if available
+    const history = this.assistant.conversationHistory || [];
+    this.runAIFeature(async () => {
+      const response = await this.assistant.askAnything(q, this.engine.getMatchSummary(), this.engine.getBallsPlayed(), this.engine.getKeyMoments(), history);
+      // Save to history
+      if (!this.assistant.conversationHistory) {
+        this.assistant.conversationHistory = [];
+      }
+      this.assistant.conversationHistory.push({ role: 'user', content: q });
+      this.assistant.conversationHistory.push({ role: 'assistant', content: response });
+      // Keep last 10 messages
+      if (this.assistant.conversationHistory.length > 10) {
+        this.assistant.conversationHistory = this.assistant.conversationHistory.slice(-10);
+      }
+      return response;
+    });
   }
 
   showAILoading() {
@@ -393,5 +451,20 @@ class CricIQApp {
 
 // Boot the app
 window.addEventListener('DOMContentLoaded', () => {
-  window.cricIQApp = new CricIQApp();
+  const app = new CricIQApp();
+  window.cricIQApp = app;
+  
+  // Initialize match switcher
+  if (typeof window.MatchSwitcher !== 'undefined') {
+    app.switcher = new MatchSwitcher(app);
+    app.switcher.bindDOM();
+    app.switcher.fetchMatches();
+  }
+
+  // Update match info periodically for live mode
+  setInterval(() => {
+    if (app.switcher && app.switcher.matches.live.length > 0) {
+      app.switcher.fetchMatches();
+    }
+  }, 10000); // Every 10 seconds
 });
