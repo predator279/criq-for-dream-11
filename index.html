@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CricIQ — AI Match Companion</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏏</text></svg>">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Section 1: Header -->
+    <header id="app-header" class="app-header">
+      <div class="header-content">
+        <div class="header-brand">
+          <h1 class="app-title">🏏 CricIQ</h1>
+          <p class="subtitle">AI-Powered Match Companion</p>
+        </div>
+        <div class="header-status">
+          <span class="live-badge"><span class="pulse-dot"></span>LIVE</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Section 2: Match Info Bar -->
+    <section id="match-info" class="card match-info-card" aria-label="Match Information">
+      <div class="match-info-row">
+        <span class="match-meta-primary">Wankhede Stadium, Mumbai · May 26, 2024</span>
+        <span class="match-meta-secondary">IPL 2024 · Qualifier 1</span>
+      </div>
+      <div class="match-toss-row">
+        <span class="toss-icon">🪙</span>
+        <span class="toss-text">CSK won the toss and elected to bat first</span>
+      </div>
+    </section>
+
+    <!-- Section 3: Scorecard -->
+    <section id="scorecard" class="card scorecard-card" aria-label="Live Scorecard">
+      <div class="scorecard-top">
+        <div class="team-score">
+          <span class="team-name csk-tag">CSK</span>
+          <span id="team-score" class="score">0/0</span>
+          <span id="team-overs" class="overs">(0.0 ov)</span>
+        </div>
+        <div class="score-meta-badge">
+          <span class="score-status-label">Powerplay</span>
+        </div>
+      </div>
+
+      <div class="scorecard-details">
+        <div class="batsmen-info">
+          <div id="batsman-strike" class="batsman active">
+            <span class="strike-marker">●</span> Ruturaj Gaikwad 0* (0)
+          </div>
+          <div id="batsman-nonstrike" class="batsman">
+            Devon Conway 0 (0)
+          </div>
+        </div>
+        <div class="bowler-wrap">
+          <div id="bowler-info" class="bowler-info">
+            Jasprit Bumrah 0-0-0-0
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 4: Ball Timeline -->
+    <section class="card timeline-card" aria-label="Ball-by-Ball Timeline">
+      <div class="card-header-bar">
+        <span class="section-title">THIS INNINGS</span>
+        <span class="section-hint">Scroll for history →</span>
+      </div>
+      <div id="ball-timeline" class="ball-timeline">
+        <!-- Ball circles and over separators populated dynamically by MatchEngine -->
+      </div>
+    </section>
+
+    <!-- Section 5: Commentary Feed -->
+    <section class="card commentary-card" aria-label="Live Commentary">
+      <div class="card-header-bar">
+        <span class="section-title">LIVE COMMENTARY</span>
+        <span class="commentary-feed-indicator">● Real-time</span>
+      </div>
+      <div id="commentary-feed" class="commentary-feed">
+        <div class="commentary-entry">
+          <div class="commentary-header">
+            <span class="over-badge">0.0</span>
+            <span class="runs-badge dot">0</span>
+          </div>
+          <p class="commentary-text">Match ready to begin. Press ▶ Play or ⏭ Next Ball below to start the live simulation!</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 6: Playback Controls -->
+    <section id="playback-controls" class="card controls-card" aria-label="Match Playback Controls">
+      <div class="controls-primary-row">
+        <button id="btn-play-pause" class="btn btn-play" aria-label="Play or pause match simulation">▶ Play</button>
+        <button id="btn-next-ball" class="btn btn-next" aria-label="Step to next ball">⏭ Next Ball</button>
+      </div>
+      <div class="controls-secondary-row">
+        <div class="speed-selector-group">
+          <label for="speed-selector" class="speed-label">Speed:</label>
+          <select id="speed-selector" class="speed-select" aria-label="Simulation speed">
+            <option value="3000">Fast (3s)</option>
+            <option value="5000">Medium (5s)</option>
+            <option value="8000" selected>Normal (8s)</option>
+            <option value="10000">Slow (10s)</option>
+          </select>
+        </div>
+        <span id="ball-counter" class="ball-counter">Ball 0 of 37</span>
+      </div>
+    </section>
+
+    <!-- Section 7: AI Assistant Panel -->
+    <section id="ai-panel" class="card ai-card" aria-label="AI Assistant Panel">
+      <div class="ai-card-header">
+        <div class="ai-title-group">
+          <h2 class="ai-heading">🤖 CricIQ AI Companion</h2>
+          <span class="ai-chip">Gemini 3.1 Flash Lite</span>
+        </div>
+        <p class="ai-desc">Instant clarity on confusing decisions, missed overs, and match insights.</p>
+      </div>
+
+      <div class="ai-buttons">
+        <button id="btn-what-happened" class="ai-btn ai-btn-blue">⚡ What Happened?</button>
+        <button id="btn-catch-up" class="ai-btn ai-btn-green">📺 Catch Me Up</button>
+        <button id="btn-ask" class="ai-btn ai-btn-purple">💬 Ask Anything</button>
+      </div>
+
+      <div id="ask-input-container" class="ask-input-container hidden">
+        <div class="ask-box">
+          <input type="text" id="ask-input" class="ask-input" placeholder="Ask about rules, DRS, players, or stats..." autocomplete="off">
+          <button id="btn-send-ask" class="btn-ask-send" aria-label="Submit question to CricIQ">Send</button>
+        </div>
+      </div>
+
+      <div id="ai-response" class="ai-response">
+        <div id="ai-loading" class="ai-loading hidden">
+          <div class="spinner"></div>
+          <span class="loading-text">Thinking...</span>
+        </div>
+        <div id="ai-response-text" class="ai-response-text ai-response-content">
+          <p class="ai-empty-prompt">Select an AI action above or ask a question to get instant, conversational cricket analysis.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 8: Footer -->
+    <footer id="app-footer" class="app-footer">
+      <p id="data-source-info" class="data-source-info">📡 Data Source: Simulated Demo</p>
+      <p class="footer-credit">Built for Dream11 · Powered by Gemini AI</p>
+    </footer>
+  </div>
+
+  <!-- Section 9: API Key Modal (overlay) -->
+  <div id="api-key-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <div class="modal-content">
+      <div class="modal-header-badge">🔑</div>
+      <h2 id="modal-title">Enter Gemini API Key</h2>
+      <p>Your key powers the AI when this app runs without a server. On the hosted version, AI is provided securely via a server proxy — this dialog may simply be closed.</p>
+      <div class="modal-form-group">
+        <input type="password" id="api-key-input" class="modal-key-input" placeholder="AIzaSy..." autocomplete="off">
+      </div>
+      <button id="btn-save-api-key" class="btn btn-save-key">Save &amp; Start</button>
+      <p class="small">Get a free key at <a href="https://ai.google.dev" target="_blank" rel="noopener noreferrer">ai.google.dev</a></p>
+    </div>
+  </div>
+
+  <!-- Scripts in required order -->
+  <script src="js/config.js"></script>
+  <script src="js/match-data.js"></script>
+  <script src="js/match-engine.js"></script>
+  <script src="js/ai-assistant.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

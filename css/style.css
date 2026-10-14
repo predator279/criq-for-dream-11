@@ -1,0 +1,1337 @@
+/* ==========================================================================
+   CricIQ — AI-Powered Live Cricket Match Companion
+   Stylesheet: style.css
+   Pure CSS, Dark Theme, Mobile-First
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   1. Design System & CSS Variables (Section 3.3.1)
+   -------------------------------------------------------------------------- */
+:root {
+  /* Backgrounds */
+  --bg-primary: #0a0e17;
+  --bg-card: #141b2d;
+  --bg-card-hover: #1a2340;
+  --bg-input: #1e2a45;
+
+  /* Text Colors */
+  --text-primary: #e8e8e8;
+  --text-secondary: #8899aa;
+  --text-muted: #556677;
+
+  /* Accents */
+  --accent-blue: #4a90d9;
+  --accent-green: #2ecc71;
+  --accent-yellow: #f1c40f;
+  --accent-red: #e74c3c;
+  --accent-purple: #9b59b6;
+  --accent-orange: #e67e22;
+
+  /* Team Colors */
+  --csk-yellow: #f9cd05;
+  --mi-blue: #004ba0;
+
+  /* Ball Delivery Colors */
+  --ball-dot: #444;
+  --ball-single: #888;
+  --ball-boundary: #2ecc71;
+  --ball-six: #f1c40f;
+  --ball-wicket: #e74c3c;
+  --ball-extra: #9b59b6;
+
+  /* Sizing & Radius */
+  --max-width: 500px;
+  --radius: 12px;
+  --radius-sm: 8px;
+
+  /* Shadows */
+  --shadow-card: 0 4px 20px rgba(0, 0, 0, 0.35);
+  --shadow-glow-yellow: 0 0 14px rgba(241, 196, 15, 0.35);
+  --shadow-glow-red: 0 0 14px rgba(231, 76, 60, 0.4);
+  --shadow-glow-green: 0 0 14px rgba(46, 204, 113, 0.35);
+}
+
+/* --------------------------------------------------------------------------
+   2. Reset & Base Layout
+   -------------------------------------------------------------------------- */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 16px;
+  background-color: var(--bg-primary);
+  color-scheme: dark;
+}
+
+body {
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  line-height: 1.5;
+  margin: 0 auto;
+  max-width: var(--max-width);
+  padding: 0 16px 36px 16px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  min-height: 100vh;
+}
+
+.app-container {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+/* Common Card Style */
+.card {
+  background: var(--bg-card);
+  border-radius: var(--radius);
+  padding: 16px;
+  margin-bottom: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow: var(--shadow-card);
+  position: relative;
+  transition: background-color 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+}
+
+.card:hover {
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+/* Section Headings inside Cards */
+.card-header-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.section-title {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+
+.section-hint {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+/* --------------------------------------------------------------------------
+   3. Section 1: Header (#app-header)
+   -------------------------------------------------------------------------- */
+#app-header {
+  padding: 16px 0 12px 0;
+  margin-bottom: 4px;
+}
+
+.header-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.app-title {
+  font-size: 1.6rem;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  line-height: 1.2;
+}
+
+.subtitle {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+  margin-top: 2px;
+}
+
+/* LIVE Badge & Pulse */
+.live-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(231, 76, 60, 0.15);
+  color: #ff5a5a;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.8px;
+  border: 1px solid rgba(231, 76, 60, 0.35);
+  box-shadow: 0 0 10px rgba(231, 76, 60, 0.2);
+}
+
+.pulse-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: var(--accent-red);
+  display: inline-block;
+  animation: pulse 1.5s infinite ease-in-out;
+}
+
+@keyframes pulse {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(231, 76, 60, 0.7);
+  }
+  50% {
+    opacity: 0.4;
+    transform: scale(0.85);
+    box-shadow: 0 0 0 4px rgba(231, 76, 60, 0);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(231, 76, 60, 0);
+  }
+}
+
+/* --------------------------------------------------------------------------
+   4. Section 2: Match Info Bar (#match-info)
+   -------------------------------------------------------------------------- */
+#match-info {
+  padding: 12px 16px;
+  background: linear-gradient(180deg, #161e33 0%, var(--bg-card) 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.match-info-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.82rem;
+  gap: 8px;
+}
+
+.match-meta-primary {
+  color: var(--text-secondary);
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.match-meta-secondary {
+  color: var(--accent-yellow);
+  font-weight: 700;
+  font-size: 0.78rem;
+  background: rgba(241, 196, 15, 0.12);
+  padding: 2px 7px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+.match-toss-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  padding-top: 6px;
+}
+
+.toss-icon {
+  font-size: 0.85rem;
+}
+
+.toss-text {
+  font-style: italic;
+  color: #9cb0c5;
+}
+
+/* --------------------------------------------------------------------------
+   5. Section 3: Scorecard (#scorecard)
+   -------------------------------------------------------------------------- */
+#scorecard {
+  background: linear-gradient(145deg, #172138 0%, #11182a 100%);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  padding: 18px 16px;
+}
+
+.scorecard-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.team-score {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.team-name {
+  font-size: 1.25rem;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+}
+
+.team-name.csk-tag {
+  color: var(--csk-yellow);
+  background: rgba(249, 205, 5, 0.15);
+  padding: 2px 8px;
+  border-radius: 6px;
+  border: 1px solid rgba(249, 205, 5, 0.3);
+}
+
+.team-name.mi-tag {
+  color: #5aa4f8;
+  background: rgba(0, 75, 160, 0.25);
+  padding: 2px 8px;
+  border-radius: 6px;
+  border: 1px solid rgba(0, 75, 160, 0.4);
+}
+
+.score,
+#team-score {
+  font-size: 2.5rem;
+  font-weight: 800;
+  color: #ffffff;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -1px;
+  transition: color 0.3s ease, transform 0.3s ease;
+}
+
+.overs,
+#team-overs {
+  font-size: 1.15rem;
+  color: var(--text-secondary);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.score-meta-badge {
+  display: flex;
+  align-items: center;
+}
+
+.score-status-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--text-secondary);
+  padding: 3px 8px;
+  border-radius: 6px;
+}
+
+/* Scorecard Details: Batsmen & Bowler */
+.scorecard-details {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.batsmen-info {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.batsman {
+  font-size: 0.88rem;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-variant-numeric: tabular-nums;
+}
+
+.batsman.active,
+.batsman.on-strike {
+  color: #ffffff;
+  font-weight: 700;
+}
+
+.strike-marker,
+.striker-dot {
+  color: var(--accent-yellow);
+  font-size: 0.65rem;
+  line-height: 1;
+}
+
+.bowler-wrap {
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+}
+
+.bowler-info,
+#bowler-info {
+  font-size: 0.88rem;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.03);
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+/* --------------------------------------------------------------------------
+   6. Section 4: Ball Timeline (#ball-timeline)
+   -------------------------------------------------------------------------- */
+.timeline-card {
+  padding: 14px 16px;
+}
+
+#ball-timeline,
+.ball-timeline {
+  display: flex;
+  align-items: center;
+  overflow-x: auto;
+  white-space: nowrap;
+  scroll-behavior: smooth;
+  padding: 6px 0;
+  gap: 6px;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Hide scrollbar across all engines */
+#ball-timeline::-webkit-scrollbar,
+.ball-timeline::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+#ball-timeline,
+.ball-timeline {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+/* Ball Circle Element */
+.ball-circle {
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: #ffffff;
+  user-select: none;
+  flex-shrink: 0;
+  transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.ball-circle:hover {
+  transform: scale(1.1);
+}
+
+/* Ball Delivery Type Styles */
+.ball-circle.dot {
+  background-color: var(--ball-dot);
+  color: #bbbbbb;
+}
+
+.ball-circle.single {
+  background-color: var(--ball-single);
+  color: #ffffff;
+}
+
+.ball-circle.two,
+.ball-circle.three {
+  background-color: #556c87;
+  color: #ffffff;
+}
+
+.ball-circle.boundary {
+  background-color: var(--ball-boundary);
+  color: #ffffff;
+  box-shadow: 0 0 10px rgba(46, 204, 113, 0.45);
+}
+
+.ball-circle.six {
+  background-color: var(--ball-six);
+  color: #111111;
+  font-weight: 900;
+  box-shadow: 0 0 12px rgba(241, 196, 15, 0.55);
+}
+
+.ball-circle.wicket {
+  background-color: var(--ball-wicket);
+  color: #ffffff;
+  font-weight: 900;
+  box-shadow: 0 0 12px rgba(231, 76, 60, 0.55);
+}
+
+.ball-circle.extra {
+  background-color: var(--ball-extra);
+  color: #ffffff;
+  font-size: 0.75rem;
+  box-shadow: 0 0 10px rgba(155, 89, 182, 0.4);
+}
+
+/* Over Separator */
+.over-separator {
+  display: inline-block;
+  width: 2px;
+  height: 28px;
+  background: rgba(255, 255, 255, 0.2);
+  margin: 0 6px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+/* --------------------------------------------------------------------------
+   7. Section 5: Commentary Feed (#commentary-feed)
+   -------------------------------------------------------------------------- */
+.commentary-card {
+  padding: 14px 16px;
+}
+
+.commentary-feed-indicator {
+  font-size: 0.72rem;
+  color: var(--accent-green);
+  font-weight: 600;
+}
+
+#commentary-feed,
+.commentary-feed {
+  max-height: 300px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-right: 4px;
+  scroll-behavior: smooth;
+}
+
+/* Subtle modern scrollbar for commentary */
+#commentary-feed::-webkit-scrollbar,
+.commentary-feed::-webkit-scrollbar {
+  width: 4px;
+}
+
+#commentary-feed::-webkit-scrollbar-track,
+.commentary-feed::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 4px;
+}
+
+#commentary-feed::-webkit-scrollbar-thumb,
+.commentary-feed::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+}
+
+/* Commentary Entry */
+.commentary-entry {
+  background: rgba(255, 255, 255, 0.025);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  border-left: 3px solid transparent;
+  border-top: 1px solid rgba(255, 255, 255, 0.03);
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.commentary-entry:hover {
+  background: rgba(255, 255, 255, 0.045);
+}
+
+/* Key Moment Highlight */
+.commentary-entry.key-moment {
+  border-left: 3px solid var(--accent-yellow);
+  background: rgba(241, 196, 15, 0.07);
+  box-shadow: 0 2px 12px rgba(241, 196, 15, 0.08);
+}
+
+.commentary-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.over-badge {
+  font-weight: 700;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  background: rgba(255, 255, 255, 0.06);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Runs Badge in Commentary */
+.runs-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.runs-badge.dot {
+  background: var(--ball-dot);
+  color: #bbbbbb;
+}
+
+.runs-badge.single {
+  background: var(--ball-single);
+  color: #ffffff;
+}
+
+.runs-badge.two,
+.runs-badge.three {
+  background: #556c87;
+  color: #ffffff;
+}
+
+.runs-badge.boundary {
+  background: var(--ball-boundary);
+  color: #ffffff;
+}
+
+.runs-badge.six {
+  background: var(--ball-six);
+  color: #111111;
+}
+
+.runs-badge.wicket {
+  background: var(--ball-wicket);
+  color: #ffffff;
+}
+
+.runs-badge.extra {
+  background: var(--ball-extra);
+  color: #ffffff;
+}
+
+.commentary-text {
+  font-size: 0.88rem;
+  color: var(--text-primary);
+  line-height: 1.45;
+}
+
+.key-moment-detail {
+  margin-top: 8px;
+  padding: 8px 10px;
+  background: rgba(0, 0, 0, 0.35);
+  border-radius: 6px;
+  font-size: 0.82rem;
+  color: #ffeb99;
+  border-left: 2px solid var(--accent-yellow);
+  line-height: 1.45;
+}
+
+/* --------------------------------------------------------------------------
+   8. Section 6: Playback Controls (#playback-controls)
+   -------------------------------------------------------------------------- */
+#playback-controls,
+.controls-card {
+  padding: 14px 16px;
+}
+
+.controls-primary-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+/* Common Button Styles */
+.btn {
+  font-family: inherit;
+  font-size: 0.95rem;
+  font-weight: 700;
+  padding: 12px 16px;
+  border-radius: var(--radius-sm);
+  border: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: transform 0.15s ease, filter 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+  user-select: none;
+}
+
+.btn:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.btn:disabled,
+.disabled {
+  opacity: 0.5 !important;
+  cursor: not-allowed !important;
+  pointer-events: none !important;
+}
+
+.btn-play,
+#btn-play-pause {
+  background: linear-gradient(135deg, #1f6feb 0%, #388bfd 100%);
+  color: #ffffff;
+  box-shadow: 0 4px 14px rgba(31, 111, 235, 0.35);
+}
+
+.btn-play:hover,
+#btn-play-pause:hover {
+  filter: brightness(1.1);
+  box-shadow: 0 6px 18px rgba(31, 111, 235, 0.45);
+}
+
+.btn-next,
+#btn-next-ball {
+  background: var(--bg-card-hover);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.btn-next:hover,
+#btn-next-ball:hover {
+  background: #222f54;
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.controls-secondary-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.speed-selector-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.speed-label {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.speed-select,
+#speed-selector {
+  font-family: inherit;
+  font-size: 0.82rem;
+  background-color: var(--bg-input);
+  color: var(--text-primary);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  padding: 6px 10px;
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.2s ease;
+}
+
+.speed-select:focus,
+#speed-selector:focus {
+  border-color: var(--accent-blue);
+}
+
+.ball-counter,
+#ball-counter {
+  font-size: 0.84rem;
+  color: var(--text-secondary);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* --------------------------------------------------------------------------
+   9. Section 7: AI Assistant Panel (#ai-panel)
+   -------------------------------------------------------------------------- */
+#ai-panel,
+.ai-card {
+  border: 1px solid rgba(74, 144, 217, 0.2);
+  background: linear-gradient(180deg, #141c30 0%, #101626 100%);
+  padding: 16px;
+}
+
+.ai-card-header {
+  margin-bottom: 12px;
+}
+
+.ai-title-group {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.ai-heading {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ai-chip {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--accent-blue);
+  background: rgba(74, 144, 217, 0.15);
+  padding: 2px 8px;
+  border-radius: 20px;
+  border: 1px solid rgba(74, 144, 217, 0.3);
+}
+
+.ai-desc {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  margin-top: 3px;
+}
+
+/* AI Action Buttons */
+.ai-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.ai-btn {
+  width: 100%;
+  padding: 14px;
+  border-radius: var(--radius-sm);
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+  transition: transform 0.15s ease, filter 0.15s ease, box-shadow 0.15s ease;
+  user-select: none;
+}
+
+.ai-btn:hover:not(:disabled) {
+  filter: brightness(1.1);
+  transform: translateY(-1px);
+}
+
+.ai-btn:active:not(:disabled) {
+  transform: translateY(0);
+  filter: brightness(0.95);
+}
+
+.ai-btn-blue,
+#btn-what-happened {
+  background: linear-gradient(135deg, #2b6cb0 0%, var(--accent-blue) 100%);
+  box-shadow: 0 4px 14px rgba(74, 144, 217, 0.3);
+}
+
+.ai-btn-blue:hover:not(:disabled),
+#btn-what-happened:hover:not(:disabled) {
+  box-shadow: 0 6px 18px rgba(74, 144, 217, 0.45);
+}
+
+.ai-btn-green,
+#btn-catch-up {
+  background: linear-gradient(135deg, #1e824c 0%, var(--accent-green) 100%);
+  box-shadow: 0 4px 14px rgba(46, 204, 113, 0.3);
+}
+
+.ai-btn-green:hover:not(:disabled),
+#btn-catch-up:hover:not(:disabled) {
+  box-shadow: 0 6px 18px rgba(46, 204, 113, 0.45);
+}
+
+.ai-btn-purple,
+#btn-ask {
+  background: linear-gradient(135deg, #7d3c98 0%, var(--accent-purple) 100%);
+  box-shadow: 0 4px 14px rgba(155, 89, 182, 0.3);
+}
+
+.ai-btn-purple:hover:not(:disabled),
+#btn-ask:hover:not(:disabled) {
+  box-shadow: 0 6px 18px rgba(155, 89, 182, 0.45);
+}
+
+/* Ask Input Container */
+.ask-input-container,
+#ask-input-container {
+  margin-bottom: 12px;
+  animation: slideDown 0.25s ease-out;
+}
+
+.ask-box {
+  display: flex;
+  gap: 8px;
+}
+
+.ask-input,
+#ask-input {
+  flex: 1;
+  background-color: var(--bg-input);
+  color: var(--text-primary);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  font-family: inherit;
+  font-size: 0.9rem;
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.ask-input:focus,
+#ask-input:focus {
+  border-color: var(--accent-purple);
+  box-shadow: 0 0 10px rgba(155, 89, 182, 0.3);
+}
+
+.ask-input::placeholder,
+#ask-input::placeholder {
+  color: var(--text-muted);
+}
+
+.btn-ask-send,
+#btn-send-ask {
+  font-family: inherit;
+  font-size: 0.9rem;
+  font-weight: 700;
+  padding: 0 20px;
+  background: var(--accent-purple);
+  color: #ffffff;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: filter 0.15s ease, transform 0.15s ease;
+}
+
+.btn-ask-send:hover:not(:disabled),
+#btn-send-ask:hover:not(:disabled) {
+  filter: brightness(1.15);
+  transform: translateY(-1px);
+}
+
+.btn-ask-send:active:not(:disabled),
+#btn-send-ask:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+/* AI Response Box */
+#ai-response {
+  border-left: 3px solid var(--accent-blue);
+  padding: 16px;
+  background: rgba(10, 14, 23, 0.7);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  line-height: 1.6;
+  min-height: 70px;
+  position: relative;
+  border-top: 1px solid rgba(255, 255, 255, 0.03);
+  border-right: 1px solid rgba(255, 255, 255, 0.03);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+}
+
+/* AI Loading State */
+#ai-loading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  font-weight: 500;
+  padding: 8px 0;
+}
+
+.spinner {
+  width: 24px;
+  height: 24px;
+  border: 3px solid rgba(74, 144, 217, 0.2);
+  border-top-color: var(--accent-blue);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.loading-text {
+  color: var(--accent-blue);
+  font-weight: 600;
+  letter-spacing: 0.3px;
+}
+
+/* AI Response Content Styling (Markdown & Rich Text) */
+.ai-response-content,
+#ai-response-text {
+  font-size: 0.92rem;
+  color: var(--text-primary);
+  line-height: 1.65;
+}
+
+.ai-response-content p,
+#ai-response-text p {
+  margin-bottom: 10px;
+}
+
+.ai-response-content p:last-child,
+#ai-response-text p:last-child {
+  margin-bottom: 0;
+}
+
+.ai-response-content strong,
+#ai-response-text strong {
+  color: #ffffff;
+  font-weight: 700;
+}
+
+.ai-response-content ul,
+.ai-response-content ol,
+#ai-response-text ul,
+#ai-response-text ol {
+  margin-left: 20px;
+  margin-bottom: 10px;
+}
+
+.ai-response-content li,
+#ai-response-text li {
+  margin-bottom: 4px;
+}
+
+.ai-empty-prompt {
+  color: var(--text-muted);
+  font-size: 0.88rem;
+  font-style: italic;
+}
+
+.ai-error-text {
+  color: #ff6b6b;
+  font-weight: 600;
+}
+
+/* --------------------------------------------------------------------------
+   10. Section 8: Footer (#app-footer)
+   -------------------------------------------------------------------------- */
+#app-footer,
+.app-footer {
+  text-align: center;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+#data-source-info,
+.data-source-info {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.footer-credit {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+/* --------------------------------------------------------------------------
+   11. Section 9: API Key Modal (#api-key-modal)
+   -------------------------------------------------------------------------- */
+#api-key-modal,
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 16px;
+  transition: opacity 0.25s ease, visibility 0.25s ease;
+}
+
+.modal-content {
+  background: var(--bg-card);
+  border-radius: var(--radius);
+  padding: 28px 24px;
+  max-width: 420px;
+  width: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 20px 45px rgba(0, 0, 0, 0.7);
+  text-align: center;
+  animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.modal-header-badge {
+  font-size: 2.2rem;
+  margin-bottom: 8px;
+  line-height: 1;
+}
+
+.modal-content h2 {
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: #ffffff;
+  margin-bottom: 8px;
+}
+
+.modal-content p {
+  font-size: 0.88rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  margin-bottom: 18px;
+}
+
+.modal-form-group {
+  margin-bottom: 16px;
+}
+
+.modal-key-input,
+#api-key-input {
+  width: 100%;
+  background-color: var(--bg-input);
+  color: var(--text-primary);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: var(--radius-sm);
+  padding: 14px;
+  font-family: monospace;
+  font-size: 0.95rem;
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  text-align: center;
+  letter-spacing: 0.5px;
+}
+
+.modal-key-input:focus,
+#api-key-input:focus {
+  border-color: var(--accent-blue);
+  box-shadow: 0 0 12px rgba(74, 144, 217, 0.4);
+}
+
+.btn-save-key,
+#btn-save-api-key {
+  width: 100%;
+  background: linear-gradient(135deg, #2b6cb0 0%, var(--accent-blue) 100%);
+  color: #ffffff;
+  padding: 14px;
+  font-size: 1rem;
+  font-weight: 700;
+  border-radius: var(--radius-sm);
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(74, 144, 217, 0.35);
+  transition: filter 0.15s ease, transform 0.15s ease;
+}
+
+.btn-save-key:hover,
+#btn-save-api-key:hover {
+  filter: brightness(1.15);
+  transform: translateY(-1px);
+}
+
+.btn-save-key:active,
+#btn-save-api-key:active {
+  transform: translateY(0);
+}
+
+.modal-content p.small {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin-top: 16px;
+  margin-bottom: 0;
+}
+
+.modal-content p.small a {
+  color: var(--accent-blue);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.modal-content p.small a:hover {
+  text-decoration: underline;
+}
+
+/* --------------------------------------------------------------------------
+   12. Utility & State Classes (Section 4.3)
+   -------------------------------------------------------------------------- */
+.hidden {
+  display: none !important;
+}
+
+.show {
+  display: block !important;
+}
+
+#api-key-modal.show {
+  display: flex !important;
+}
+
+#api-key-modal.hidden {
+  display: none !important;
+}
+
+#ask-input-container.hidden {
+  display: none !important;
+}
+
+#ai-loading.hidden {
+  display: none !important;
+}
+
+/* --------------------------------------------------------------------------
+   13. Dynamic Animations (popIn, slideDown, flashes)
+   -------------------------------------------------------------------------- */
+
+/* Ball Circle popIn Entrance */
+.pop-in,
+.ball-circle {
+  animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes popIn {
+  from {
+    transform: scale(0);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* Commentary Entry slideDown Entrance */
+.slide-down,
+.commentary-entry {
+  animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Score Number Flash */
+.score-flash {
+  animation: flashScore 0.5s ease-out;
+}
+
+@keyframes flashScore {
+  0% {
+    color: var(--accent-yellow);
+    transform: scale(1.08);
+  }
+  100% {
+    color: #ffffff;
+    transform: scale(1);
+  }
+}
+
+/* Wicket Flash Effect on Scorecard */
+.wicket-flash {
+  animation: flashWicket 0.65s ease-out;
+}
+
+@keyframes flashWicket {
+  0% {
+    background-color: rgba(231, 76, 60, 0.35);
+    border-color: var(--accent-red);
+    box-shadow: var(--shadow-glow-red);
+  }
+  100% {
+    background-color: var(--bg-card);
+    border-color: rgba(255, 255, 255, 0.06);
+    box-shadow: var(--shadow-card);
+  }
+}
+
+/* Boundary Flash Effect on Scorecard */
+.boundary-flash {
+  animation: flashBoundary 0.65s ease-out;
+}
+
+@keyframes flashBoundary {
+  0% {
+    background-color: rgba(46, 204, 113, 0.28);
+    border-color: var(--accent-green);
+    box-shadow: var(--shadow-glow-green);
+  }
+  100% {
+    background-color: var(--bg-card);
+    border-color: rgba(255, 255, 255, 0.06);
+    box-shadow: var(--shadow-card);
+  }
+}
+
+/* --------------------------------------------------------------------------
+   14. Responsive Layout Refinements
+   -------------------------------------------------------------------------- */
+@media (min-width: 501px) {
+  body {
+    padding-top: 16px;
+  }
+
+  .card {
+    border-radius: var(--radius);
+  }
+}
+
+@media (max-width: 360px) {
+  html {
+    font-size: 14px;
+  }
+
+  .app-title {
+    font-size: 1.4rem;
+  }
+
+  .score,
+  #team-score {
+    font-size: 2.1rem;
+  }
+
+  .ball-circle {
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+    font-size: 0.8rem;
+  }
+
+  .modal-content {
+    padding: 20px 16px;
+  }
+}
