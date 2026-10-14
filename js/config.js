@@ -29,5 +29,9 @@ window.CRICIQ_CONFIG = {
     // Optional: direct-browser Groq key for local use only. DOES NOT go to Vercel.
     defaultApiKey: "",
     model: "openai/gpt-oss-120b"
+  },
+  cricapi: {
+    // Optional: direct-browser CricAPI key if running without a backend.
+    defaultApiKey: ""
   }
 };

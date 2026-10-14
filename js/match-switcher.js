@@ -322,15 +322,17 @@ class MatchSwitcher {
    * Fetch live matches from the API.  
    */  
   async fetchMatches() {  
+    if (this.isLoading) return;  // guard against overlapping refresh cycles
     this.isLoading = true;  
     this.showBanner('no-live-banner', 'Fetching live matches…');  
 
     let data = null;  
+    const clientKey = (typeof window !== 'undefined' && window.CRICIQ_CONFIG?.cricapi?.defaultApiKey) || '';
     try {  
       const response = await fetch('/api/live-match', {  
         method: 'POST',  
         headers: { 'Content-Type': 'application/json' },  
-        body: JSON.stringify({ action: 'getMatches' })  
+        body: JSON.stringify({ action: 'getMatches', apiKey: clientKey })  
       });  
 
       if (!response.ok) {  
@@ -371,17 +373,34 @@ class MatchSwitcher {
       this.hideBanner('no-live-banner');  
       this.updateDataSourceInfo('Live API (CricAPI)');  
     } else if (data && data.ok) {  
-      this.showBanner('fallback-banner', 'No matches in progress right now — showing upcoming fixtures and the demo.');  
+      this.showBanner('fallback-banner', 'Connected to CricAPI — no matches in progress right now. Upcoming fixtures and the demo are shown.');  
       this.hideBanner('no-live-banner');  
       this.updateDataSourceInfo('Live API (CricAPI) — no match live');  
     } else {  
-      this.showBanner('fallback-banner', 'Live API unavailable (no CRICAPI_API_KEY configured, offline, or quota used). Running the simulated demo.');  
+      this.showBanner('fallback-banner', this.buildUnavailableMessage(data));  
       this.hideBanner('no-live-banner');  
       this.updateDataSourceInfo('Demo (CricAPI unavailable)');  
     }  
 
     this.isLoading = false;  
     this.render();  
+  }  
+
+  /**
+   * Build a user-facing message from a failed getMatches response.
+   */
+  buildUnavailableMessage(data) {
+    const reason = (data && data.reason) || '';
+    const r = reason.toLowerCase();
+    if (r.includes('not set'))
+      return 'Live matches need the CRICAPI_API_KEY environment variable on the deployed server. Add it in Vercel → Settings → Environment Variables, then redeploy the latest deployment.';
+    if (r.includes('quota'))
+      return 'CricAPI free quota used up for today (100 hits/day). Live matches resume at midnight UTC, or upgrade the key on cricketdata.org.';
+    if (r.includes('http 401') || r.includes('http 403'))
+      return 'CricAPI rejected the key (HTTP auth error) — check the key value on cricketdata.org.';
+    if (r.includes('http'))
+      return `CricAPI request failed (${reason}). Retrying on the next refresh.`;
+    return 'Live cricket data is unavailable right now. Showing the simulated demo instead.';
   }  
 
   /**  

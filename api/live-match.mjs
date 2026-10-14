@@ -97,35 +97,85 @@ function mapMatch(m) {
 
 /* ------------------------------ CricAPI fetchers ------------------------------ */
 
+// Modest server-side cache so several open tabs / rapid polls don't burn the
+// 100-hits/day free quota. Vercel may still spawn multiple instances, but every
+// instance that does share memory gets the benefit.
+const apiCache = new Map();   // key → { at, value }
+const MATCHES_TTL = 30_000;   // list refreshes half a minute at most
+const SCORE_TTL = 10_000;     // scorecard refreshes at most every 10 s
+
+function cacheGet(key) {
+  const hit = apiCache.get(key);
+  if (!hit) return null;
+  return (Date.now() - hit.at) < hit.ttl ? hit.value : null;
+}
+
+function cacheSet(key, ttl, value) {
+  apiCache.set(key, { at: Date.now(), ttl, value });
+}
+
+/** CricAPI "success" responses have evolved: old docs say "success", newer
+ *  responses use "ok". Accept both so a valid key isn't reported as failure. */
+function cricapiOk(payload) {
+  return payload && (payload.status === 'success' || payload.status === 'ok');
+}
+
 async function fetchCurrentMatches(apiKey) {
+  const cached = cacheGet('matches');
+  if (cached) return cached;
+
   try {
     const res = await fetch(`${CRICAPI_BASE}/currentMatches?apikey=${encodeURIComponent(apiKey)}&offset=0`);
-    if (!res.ok) { console.warn('[LiveMatch] currentMatches HTTP', res.status); return null; }
-    const data = await res.json();
-    if (data.status !== 'success' || !Array.isArray(data.data)) {
-      console.warn('[LiveMatch] currentMatches rejected, reason:', data.reason || data.status);
-      return null;
+    if (!res.ok) {
+      console.warn('[LiveMatch] currentMatches HTTP', res.status);
+      return { ok: false, reason: `CricAPI HTTP ${res.status} (bad/expired key or transient outage)` };
     }
-    return data.data;
+    const data = await res.json();
+    if (!cricapiOk(data) || !Array.isArray(data.data)) {
+      console.warn('[LiveMatch] currentMatches rejected:', data.reason || data.status);
+      return {
+        ok: false,
+        reason: data.reason
+          ? `CricAPI said "${data.reason}" — usually quota used or invalid key`
+          : `unexpected CricAPI status "${data.status ?? 'missing'}"`
+      };
+    }
+    const value = { ok: true, matches: data.data };
+    cacheSet('matches', MATCHES_TTL, value);
+    return value;
   } catch (err) {
     console.warn('[LiveMatch] currentMatches error:', err.message);
-    return null;
+    return { ok: false, reason: `network error talking to CricAPI: ${err.message}` };
   }
 }
 
 async function fetchScorecard(apiKey, matchId) {
+  const key = `score:${matchId}`;
+  const cached = cacheGet(key);
+  if (cached) return cached;
+
   try {
     const res = await fetch(`${CRICAPI_BASE}/match_scorecard?apikey=${encodeURIComponent(apiKey)}&id=${encodeURIComponent(matchId)}`);
-    if (!res.ok) { console.warn('[LiveMatch] scorecard HTTP', res.status); return null; }
-    const data = await res.json();
-    if (data.status !== 'success' || !data.data) {
-      console.warn('[LiveMatch] scorecard rejected, reason:', data.reason || data.status);
-      return null;
+    if (!res.ok) {
+      console.warn('[LiveMatch] scorecard HTTP', res.status);
+      return { ok: false, reason: `CricAPI HTTP ${res.status} (bad/expired key or transient outage)` };
     }
-    return data.data;
+    const data = await res.json();
+    if (!cricapiOk(data) || !data.data) {
+      console.warn('[LiveMatch] scorecard rejected:', data.reason || data.status);
+      return {
+        ok: false,
+        reason: data.reason
+          ? `CricAPI said "${data.reason}" — usually quota used or invalid key`
+          : `unexpected CricAPI status "${data.status ?? 'missing'}"`
+      };
+    }
+    const value = { ok: true, match: data.data };
+    cacheSet(key, SCORE_TTL, value);
+    return value;
   } catch (err) {
     console.warn('[LiveMatch] scorecard error:', err.message);
-    return null;
+    return { ok: false, reason: `network error talking to CricAPI: ${err.message}` };
   }
 }
 
@@ -212,18 +262,19 @@ export default async function handler(req, res) {
   } catch { body = {}; }
 
   const action = body.action || 'getMatches';
-  const apiKey = process.env.CRICAPI_API_KEY;
+  const apiKey = (process.env.CRICAPI_API_KEY || body.apiKey || '').trim();
 
   if (action === 'getMatches') {
     if (!apiKey) {
-      return res.status(200).json({ ok: false, source: 'none', matches: [] });
+      return res.status(200).json({ ok: false, source: 'none', matches: [], reason: 'CRICAPI_API_KEY not set on the server' });
     }
-    const raw = await fetchCurrentMatches(apiKey);
-    if (!raw) {
-      return res.status(200).json({ ok: false, source: 'cricapi', matches: [] });
+    const result = await fetchCurrentMatches(apiKey);
+    if (!result.ok) {
+      return res.status(200).json({ ok: false, source: 'cricapi', matches: [], reason: result.reason });
     }
     // Popular leagues first, so the ribbon stays focused during world-cup noise.
     const PRIORITY = /(indian premier league|ipl|world cup|wpl|t20blast|big bash|psl|twenty20 international|t20i)/i;
+    const raw = result.matches;
     raw.sort((a, b) => {
       const pa = PRIORITY.test(a.name || '') ? 0 : 1;
       const pb = PRIORITY.test(b.name || '') ? 0 : 1;
@@ -238,13 +289,15 @@ export default async function handler(req, res) {
   if (action === 'getScore') {
     const matchId = body.matchId;
     if (!matchId) return res.status(400).json({ error: 'matchId is required' });
-    if (!apiKey) return res.status(200).json({ ok: false, source: 'none' });
+    if (!apiKey) return res.status(200).json({ ok: false, source: 'none', reason: 'CRICAPI_API_KEY not set on the server' });
 
-    const match = await fetchScorecard(apiKey, matchId);
-    if (!match) return res.status(200).json({ ok: false, source: 'cricapi', matchId });
+    const result = await fetchScorecard(apiKey, matchId);
+    if (!result.ok) {
+      return res.status(200).json({ ok: false, source: 'cricapi', matchId, reason: result.reason });
+    }
 
-    const state = mapScorecardToState(match, matchId);
-    if (!state) return res.status(200).json({ ok: false, source: 'cricapi', matchId });
+    const state = mapScorecardToState(result.match, matchId);
+    if (!state) return res.status(200).json({ ok: false, source: 'cricapi', matchId, reason: 'scorecard parsed but no innings data yet (match may not have started)' });
 
     return res.status(200).json({
       ok: true, source: 'cricapi', matchId, state,
