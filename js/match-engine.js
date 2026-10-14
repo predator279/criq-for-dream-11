@@ -1067,6 +1067,13 @@ class MatchEngine {
   }
 
   /**
+   * Get current ball index (from current provider).
+   */
+  get currentBallIndex() {
+    return this.currentProvider.currentBallIndex;
+  }
+
+  /**
    * Get current mode.
    */
   getMode() {
