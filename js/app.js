@@ -8,7 +8,7 @@ class CricIQApp {
     this.engine = new MatchEngine(window.MATCH_DATA);
     this.assistant = new AIAssistant();
     this.switcher = null;
-    this.playbackSpeed = 8000; // matches the default Speed dropdown value
+    this.playbackSpeed = 3000; // matches the default Speed dropdown value
     this.el = {}; // DOM refs, populated in bindDOM
     this.lastBallOver = -1;
     this.matchInfo = {
