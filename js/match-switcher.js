@@ -93,7 +93,12 @@ class MatchSwitcher {
     `;  
 
     // Insert after header content  
-    header.insertBefore(ribbon, header.querySelector('.header-status'));  
+    const headerStatus = header.querySelector('.header-status');  
+    if (headerStatus) {  
+      header.insertBefore(ribbon, headerStatus);  
+    } else {  
+      header.appendChild(ribbon);  
+    }  
 
     // Add styles for match ribbon  
     this.addMatchRibbonStyles();  
