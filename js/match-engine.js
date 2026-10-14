@@ -1056,21 +1056,29 @@ class MatchEngine {
   setOnMatchEnd(callback) {  
     this.onMatchEnd = callback;  
     this.currentProvider.onMatchEnd = callback;  
-  }  
+  }  /**
+   * Get total balls (from current provider or simulated provider).
+   */
+  get totalBalls() {
+    if (this.currentProvider === this.simulatedProvider) {
+      return this.simulatedProvider.totalBalls;
+    }
+    return this.liveProvider.totalBalls || this.simulatedProvider.totalBalls;
+  }
 
-  /**  
-   * Get current mode.  
-   */  
-  getMode() {  
-    return this.mode;  
-  }  
+  /**
+   * Get current mode.
+   */
+  getMode() {
+    return this.mode;
+  }
 
-  /**  
-   * Check if currently in live mode with active data.  
-   */  
-  isLiveMode() {  
-    return this.mode === 'live' && this.liveProvider.hasLiveData();  
-  }  
+  /**
+   * Check if currently in live mode with active data.
+   */
+  isLiveMode() {
+    return this.mode === 'live' && this.liveProvider.hasLiveData();
+  }
 }  
 
 // Attach to window for global access  
