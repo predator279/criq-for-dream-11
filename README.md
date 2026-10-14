@@ -26,6 +26,36 @@ automatic fallback provider if Gemini rate-limits. Browser calls go through a
 secure same-origin serverless proxy (Vercel Function), so API keys live only in
 server-side environment variables — never in the shipped client code.
 
+## Run locally
+
+```bash
+npm install
+npm run dev
+```
+
+Open http://localhost:4173. The dev server (`server.mjs`) serves the static app
+AND the `/api/*` functions, so AI actions and the match ribbon work locally.
+
+### Live matches via CricAPI
+
+Without a key the app shows the simulated demo only. To fill the LIVE / UPCOMING /
+COMPLETED columns with real matches:
+
+1. Get a free key at https://cricketdata.org (free tier: 100 hits/day).
+2. Either set it locally:
+
+   ```bash
+   CRICAPI_API_KEY=your_key npm run dev     # (PowerShell: $env:CRICAPI_API_KEY="your_key"; npm run dev)
+   ```
+
+   …or add `CRICAPI_API_KEY` to Vercel → Settings → Environment Variables on the
+   deployed project.
+
+The ribbon auto-refreshes every 10 s while a live match is selected; clicking a
+LIVE card starts polling `/api/live-match` and the scorecard updates in place.
+Speed selector: in demo mode it is the ms between balls; with a live match it is
+the polling interval (minimum 2 s to respect the free quota).
+
 ## Setup / Deployment (Vercel)
 
 1. Import this repo into Vercel (Hobby/free tier — zero config, the static app

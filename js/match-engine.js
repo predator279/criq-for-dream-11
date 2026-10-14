@@ -297,6 +297,14 @@ class SimulatedProvider extends MatchProvider {
   }  
 
   /**  
+   * Upgrade the demo engine: rewind to ball 0 and stop any active playback.  
+   */  
+  reset() {  
+    this.stop();  
+    this.currentBallIndex = -1;  
+  }  
+
+  /**  
    * Get match metadata.  
    */  
   getMatchMeta() {  
@@ -559,332 +567,207 @@ class SimulatedProvider extends MatchProvider {
 // ----------------------------- Live Polling Provider -----------------------------  
 
 /**  
- * LivePollingProvider: Polls a live cricket API endpoint for real-time data.  
- * If no API is available, falls back to demo simulation.  
+ * LivePollingProvider: Polls the /api/live-match serverless proxy (which talks to  
+ * CricAPI) and emits a normalized state. It does NOT synthesize fake balls — the UI  
+ * renders whatever the last poll returned.  
  */  
-class LivePollingProvider extends MatchProvider {  
+class LivePollingProvider {  
   /**  
    * @param {Object} options  
-   * @param {string} options.apiUrl - URL to poll for live match data  
    * @param {number} options.pollInterval - Polling interval in ms (default 5000)  
-   * @param {Object} options.fallbackProvider - Fallback SimulatedProvider if API fails  
    */  
   constructor(options = {}) {  
-    super();  
-    this.apiUrl = options.apiUrl || '';  
     this.pollInterval = options.pollInterval || 5000;  
-    this.fallbackProvider = options.fallbackProvider || null;  
     this.pollTimer = null;  
-    this.onBallPlayed = null;  
-    this.onMatchEnd = null;  
-    this.lastKnownScore = { runs: 0, wickets: 0, overs: "0.0" };  
+    this.isPolling = false;  
+    this.onStateUpdate = null;  // callback(state)   
+    this.onMatchEnd = null;
+    this.matchId = null;  
+    this.matchInfo = null;  
     this.liveMatchData = null;  
-    this.isLiveMode = false;  
-    this.isAutoScrollPaused = false;  
-    this.currentMatchId = null;  
-    this.currentMatchInfo = null;  
+    this.lastStateJSON = null;  
   }  
 
   /**  
-   * Check if live API is configured.  
+   * Check if a live match is selected for polling.  
    */  
   hasLiveData() {  
-    return Boolean(this.apiUrl);  
+    return Boolean(this.matchId);  
   }  
 
   /**  
-   * Start live polling.  
+   * Select (or change) the live match to poll.
    */  
-  start(onBallPlayed, onMatchEnd) {  
-    this.onBallPlayed = onBallPlayed;  
-    this.onMatchEnd = onMatchEnd;  
+  setMatch(matchId) {  
+    this.matchId = matchId || null;  
+    this.matchInfo = null;  
+    this.liveMatchData = null;  
+    this.lastStateJSON = null;  
+  }  
+
+  /**  
+   * Update polling cadence (ms). Restarts the timer if already polling.
+   */  
+  setPollInterval(ms) {  
+    const interval = Math.max(2000, Number(ms) || 5000);  
+    this.pollInterval = interval;  
+    if (this.isPolling) {  
+      this.stop();  
+      this.start(this.onStateUpdate, this.onMatchEnd);  
+    }  
+  }
+
+  /**  
+   * Start polling.  
+   */  
+  start(onStateUpdate, onMatchEnd) {  
+    this.onStateUpdate = onStateUpdate;  
+    this.onMatchEnd = onMatchEnd;
 
     if (!this.hasLiveData()) {  
-      // No API configured, use fallback  
-      if (this.fallbackProvider) {  
-        this.fallbackProvider.start(onBallPlayed, onMatchEnd);  
-      }  
+      console.warn('[LivePollingProvider] start() called without a match id');  
       return;  
     }  
 
-    this.isLiveMode = true;  
-    // Initial fetch  
-    this.fetchMatches().then(() => {  
-      // Start polling  
+    // Initial fetch, then periodic updates. runInitial handles "match over" once.
+    const initial = this.fetchMatchUpdates();
+    if (initial && typeof initial.then === 'function') {
+      initial.then(() => {
+        if (this.isPolling) return;
+        this.isPolling = true;
+        this.pollTimer = setInterval(() => {  
+          this.fetchMatchUpdates();  
+        }, this.pollInterval);  
+      });
+    } else {
+      this.isPolling = true;
       this.pollTimer = setInterval(() => {  
         this.fetchMatchUpdates();  
       }, this.pollInterval);  
-    });  
+    }
   }  
 
   /**  
-   * Stop live polling.  
+   * Stop polling.  
    */  
   stop() {  
     if (this.pollTimer) {  
       clearInterval(this.pollTimer);  
       this.pollTimer = null;  
     }  
-    this.isLiveMode = false;  
-
-    // Also stop fallback if active  
-    if (this.fallbackProvider && this.fallbackProvider.isPlaying) {  
-      this.fallbackProvider.stop();  
-    }  
-  }  
-
-  /**  
-   * Play/Pause for live mode (toggles auto-scroll sync).  
+    this.isPolling = false;  
+  }  /**  
+   * Toggle polling on/off (the live-mode meaning of play/pause).  
    */  
-  togglePlayPause() {  
-    if (this.isLiveMode) {  
-      // In live mode, this toggles auto-scroll sync  
-      this.isAutoScrollPaused = !this.isAutoScrollPaused;  
-    } else if (this.fallbackProvider) {  
-      this.fallbackProvider.togglePlayPause();  
+  togglePolling() {  
+    if (this.isPolling) {  
+      this.stop();  
+    } else {  
+      this.start(this.onStateUpdate, this.onMatchEnd);  
     }  
   }  
 
   /**  
-   * Jump to live (re-sync after pausing).  
+   * Fetch the latest scorecard once. Calls onStateUpdate(state) when something changed.  
    */  
-  jumpToLive() {  
-    this.isAutoScrollPaused = false;  
-    if (this.fallbackProvider) {  
-      this.fetchMatchUpdates();  
+  async fetchMatchUpdates() {  
+    if (!this.matchId) return;  
+
+    try {  
+      const response = await fetch('/api/live-match', {  
+        method: 'POST',  
+        headers: { 'Content-Type': 'application/json' },  
+        body: JSON.stringify({ action: 'getScore', matchId: this.matchId })  
+      });  
+
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);  
+
+      const data = await response.json();  
+      if (!data.ok || !data.state) {  
+        console.warn('[LivePollingProvider] no state for match', this.matchId, data.reason || '');  
+        return;  
+      }  
+
+      const state = { ...data.state, isLive: true, isDemo: false, source: 'live-api' };  
+      const json = JSON.stringify(state);
+      this.liveMatchData = { state, matchInfo: data.matchInfo || null };  
+      this.matchInfo = this.matchInfo || state;
+
+      // Only push to the UI when the payload actually changed (polls are frequent;  
+      // re-rendering identical state would re-trigger CSS flashes).  
+      if (json !== this.lastStateJSON) {  
+        this.lastStateJSON = json;  
+        if (typeof this.onStateUpdate === 'function') this.onStateUpdate(state);  
+      }
+
+      // Match over? Stop polling once we surface the final state.  
+      const t = String(state.statusText || '').toLowerCase();
+      if (/(won|complete|abandon|no result|tied|drawn)/.test(t) && this.isPolling) {
+        this.stop();
+        if (typeof this.onMatchEnd === 'function') this.onMatchEnd();
+      }
+    } catch (err) {  
+      console.warn('[LivePollingProvider] fetchMatchUpdates failed:', err.message);  
     }  
   }  
 
   /**  
-   * Get the next delivery (for live mode, fetches latest updates).  
-   */  
-  nextDelivery() {  
-    if (this.isLiveMode) {  
-      // In live mode, just fetch latest  
-      this.fetchMatchUpdates();  
-      return null;  
-    } else if (this.fallbackProvider) {  
-      return this.fallbackProvider.nextDelivery();  
-    }  
-    return null;  
-  }  
-
-  /**  
-   * Set playback speed (only applies to fallback).  
-   */  
-  setSpeed(ms) {  
-    if (this.fallbackProvider) {  
-      this.fallbackProvider.setSpeed(ms);  
-    }  
-  }  
-
-  /**  
-   * Get current match state from live data or fallback.  
+   * Get current match state from live data (or null until the first poll lands).  
    */  
   getMatchState() {  
-    if (this.liveMatchData) {  
-      return {  
-        ...this.liveMatchData.state,  
-        isLive: true,  
-        isDemo: false,  
-        source: 'live-api'  
-      };  
+    if (this.liveMatchData && this.liveMatchData.state) {  
+      return { ...this.liveMatchData.state };  
     }  
-
-    if (this.fallbackProvider) {  
-      const state = this.fallbackProvider.getMatchState();  
-      return {  
-        ...state,  
-        isLive: this.isLiveMode && !this.isAutoScrollPaused,  
-        isDemo: !this.isLiveMode,  
-        source: this.isLiveMode ? 'live-fallback' : 'demo'  
-      };  
-    }  
-
     return {  
-      score: 0,  
-      wickets: 0,  
-      oversDisplay: "0.0",  
-      isLive: false,  
-      isDemo: true,  
-      source: 'none'  
+      score: 0, wickets: 0, oversDisplay: '0.0',  
+      runs: 0, wicketsNumber: 0, overs: '0.0',  
+      batsmen: [], bowler: null,  
+      isLive: true, isDemo: false, awaitingData: true,  
+      source: 'live-api'  
     };  
   }  
 
   /**  
-   * Get match metadata.  
+   * Get match metadata (standard shape used by app.js updateMatchInfo).  
    */  
   getMatchMeta() {  
-    if (this.currentMatchInfo) {  
-      return this.currentMatchInfo;  
-    }  
-    if (this.fallbackProvider) {  
-      return this.fallbackProvider.getMatchMeta();  
-    }  
-    return {};  
+    const s = this.liveMatchData && this.liveMatchData.state;
+    const info = (this.liveMatchData && this.liveMatchData.matchInfo) || {};
+    if (!s && !info.name) return {};  
+    return {  
+      team1: { short: (s && s.battingTeam || '').slice(0, 14), name: s && s.battingTeam },  
+      team2: { short: (s && s.bowlingTeam || '').slice(0, 14), name: s && s.bowlingTeam },  
+      venue: info.venue || 'Live match',  
+      date: info.date || '',  
+      type: info.name || 'Live · CricAPI',  
+      toss: '',  
+      statusText: info.statusText || (s && s.statusText)  
+    };  
   }  
 
   /**  
-   * Get balls played (from live feed or fallback).  
+   * Balls played — live feed has no ball array; return empty so AI fallbacks are safe.  
    */  
-  getBallsPlayed() {  
-    if (this.liveMatchData && this.liveMatchData.balls) {  
-      return this.liveMatchData.balls;  
-    }  
-    if (this.fallbackProvider) {  
-      return this.fallbackProvider.getBallsPlayed();  
-    }  
-    return [];  
-  }  
+  getBallsPlayed() { return []; }  
 
-  /**  
-   * Get batsman stats.  
-   */  
-  getBatsmanStats() {  
-    if (this.fallbackProvider) {  
-      return this.fallbackProvider.getBatsmanStats();  
-    }  
-    return {};  
-  }  
+  getBatsmanStats() { return {}; }  
 
-  /**  
-   * Get bowler stats.  
-   */  
-  getBowlerStats() {  
-    if (this.fallbackProvider) {  
-      return this.fallbackProvider.getBowlerStats();  
-    }  
-    return {};  
-  }  
+  getBowlerStats() { return {}; }  
 
-  /**  
-   * Get match summary.  
-   */  
   getMatchSummary() {  
-    if (this.fallbackProvider) {  
-      return this.fallbackProvider.getMatchSummary();  
-    }  
-    return "No match data available.";  
+    const s = this.liveMatchData && this.liveMatchData.state;  
+    if (!s) return 'Live match selected — waiting for first scorecard update.';  
+    const bm = (s.batsmen || []).map(b => `${b.name} ${b.runs}${b.notOut ? '*' : ''} (${b.balls})`).join(', ');  
+    const bw = s.bowler ? `${s.bowler.name} ${s.bowler.overs}-${s.bowler.wickets}-${s.bowler.runs}` : 'n/a';  
+    return `LIVE (CricAPI)\n${s.battingTeam} ${s.runs}/${s.wickets} after ${s.overs} overs vs ${s.bowlingTeam}\n` +  
+      `Batsmen: ${bm || 'n/a'}\nBowler: ${bw}\nStatus: ${s.statusText || ''}`;  
   }  
 
-  /**  
-   * Fetch list of current matches.  
-   */  
-  async fetchMatches() {  
-    try {  
-      const response = await fetch('/api/live-match', {  
-        method: 'POST',  
-        headers: { 'Content-Type': 'application/json' },  
-        body: JSON.stringify({ action: 'getMatches' })  
-      });  
+  getCommentaryLog() { return ''; }  
 
-      if (!response.ok) {  
-        throw new Error(`HTTP ${response.status}`);  
-      }  
+  getLastNBalls(n = 6) { return []; }  
 
-      const data = await response.json();  
-      if (data.matches && data.matches.length > 0) {  
-        // Select the first live match  
-        const liveMatch = data.matches.find(m => m.status === 'live') || data.matches[0];  
-        this.currentMatchId = liveMatch.id;  
-        this.currentMatchInfo = {  
-          team1: liveMatch.team1,  
-          team2: liveMatch.team2,  
-          venue: liveMatch.venue || 'Ground',  
-          date: liveMatch.date,  
-          type: liveMatch.name,  
-          toss: liveMatch.toss || 'Toss pending'  
-        };  
-        return this.fetchMatchUpdates();  
-      }  
-    } catch (err) {  
-      console.warn('[LivePollingProvider] Failed to fetch matches:', err);  
-    }  
-  }  
-
-  /**  
-   * Fetch latest match updates.  
-   */  
-  async fetchMatchUpdates() {  
-    if (!this.hasLiveData()) {  
-      if (this.fallbackProvider) {  
-        this.fallbackProvider.start(this.onBallPlayed, this.onMatchEnd);  
-      }  
-      return;  
-    }  
-
-    try {  
-      const response = await fetch('/api/live-match', {  
-        method: 'POST',  
-        headers: { 'Content-Type': 'application/json' },  
-        body: JSON.stringify({  
-          action: 'getScore',  
-          matchId: this.currentMatchId  
-        })  
-      });  
-
-      if (!response.ok) {  
-        throw new Error(`HTTP ${response.status}`);  
-      }  
-
-      const data = await response.json();  
-      if (data.state) {  
-        const newState = data.state;  
-        // Compare with last known state  
-        this.lastKnownScore = {  
-          runs: newState.runs || this.lastKnownScore.runs,  
-          wickets: newState.wickets || this.lastKnownScore.wickets,  
-          overs: newState.overs || this.lastKnownScore.overs  
-        };  
-
-        this.liveMatchData = {  
-          state: newState,  
-          balls: data.balls || [],  
-          commentary: data.commentary || []  
-        };  
-
-        // Notify if there's a new ball event  
-        if (data.lastBall && typeof this.onBallPlayed === 'function') {  
-          this.onBallPlayed(data.lastBall, this.liveMatchData.balls.length - 1);  
-        }  
-
-        // Update isLive flag based on auto-scroll  
-        if (typeof this.onBallPlayed === 'function' && !this.isAutoScrollPaused) {  
-          // Auto-scroll is active, so this is live  
-        }  
-      }  
-    } catch (err) {  
-      console.warn('[LivePollingProvider] Failed to fetch updates:', err);  
-      // Fall back to demo if we're in live mode but API fails  
-      if (this.isLiveMode && this.fallbackProvider && !this.fallbackProvider.isPlaying) {  
-        this.fallbackProvider.start(this.onBallPlayed, this.onMatchEnd);  
-      }  
-    }  
-  }  
-
-  /**  
-   * Get last N balls.  
-   */  
-  getLastNBalls(n = 6) {  
-    const played = this.getBallsPlayed();  
-    return played.slice(-n);  
-  }  
-
-  /**  
-   * Get key moments.  
-   */  
-  getKeyMoments() {  
-    return this.getBallsPlayed().filter(ball => Boolean(ball.isKeyMoment));  
-  }  
-
-  /**  
-   * Get commentary log.  
-   */  
-  getCommentaryLog() {  
-    return this.getBallsPlayed()  
-      .map(b => `${b.overDisplay}: ${b.commentary}`)  
-      .join('\n');  
-  }  
+  getKeyMoments() { return []; }  
 }  
 
 // ----------------------------- Match Engine (Facade) -----------------------------  
@@ -905,6 +788,7 @@ class MatchEngine {
     });  
     this.currentProvider = this.simulatedProvider;  
     this.mode = 'demo'; // 'demo' | 'live'  
+    this.playbackSpeed = 5000; // default poll/simulation interval in ms
     this.onBallPlayed = null;  
     this.onMatchEnd = null;  
   }  
@@ -913,32 +797,41 @@ class MatchEngine {
    * Switch to demo/simulated mode.  
    */  
   switchToDemo() {  
-    this.stop();  
+    this.pause();  
     this.mode = 'demo';  
     this.currentProvider = this.simulatedProvider;  
-    this.currentProvider.currentBallIndex = -1;  
+    this.simulatedProvider.reset();  
     console.log('[CricIQ] Switched to demo mode');  
-  }  
+  }
 
   /**  
-   * Switch to live mode.  
+   * Switch to live mode for a specific CricAPI match id.
    */  
-  switchToLive() {  
-    this.stop();  
+  switchToLive(matchId) {  
+    this.pause();  
     this.mode = 'live';  
     this.currentProvider = this.liveProvider;  
-    this.liveProvider.start(this.onBallPlayed.bind(this), this.onMatchEnd.bind(this));  
-    console.log('[CricIQ] Switched to live mode');  
+    this.liveProvider.setMatch(matchId);  
+    this.liveProvider.setPollInterval(this.playbackSpeed || 5000);
+    this.liveProvider.onStateUpdate = (state) => {  
+      if (typeof this.onBallPlayed === 'function') this.onBallPlayed(state);  
+    };  
+    this.liveProvider.start();  
+    console.log('[CricIQ] Switched to live mode, match', matchId);  
   }  
 
   /**  
    * Start auto-advancing balls or live polling.  
    */  
   play() {  
-    if (this.currentProvider === this.simulatedProvider) {  
-      this.simulatedProvider.start(this.onBallPlayed.bind(this), this.onMatchEnd.bind(this));  
+    if (this.mode === 'live') {  
+      if (!this.liveProvider.hasLiveData()) {  
+        console.warn('[CricIQ] play() in live mode but no match selected');  
+        return;  
+      }  
+      this.liveProvider.start();  
     } else {  
-      this.liveProvider.start(this.onBallPlayed.bind(this), this.onMatchEnd.bind(this));  
+      this.simulatedProvider.start(this.onBallPlayed.bind(this), this.onMatchEnd.bind(this));  
     }  
   }  
 
@@ -946,28 +839,54 @@ class MatchEngine {
    * Stop playback/polling.  
    */  
   pause() {  
-    this.currentProvider.stop();  
+    if (this.mode === 'live') this.liveProvider.stop();  
+    else this.simulatedProvider.stop();  
   }  
 
   /**  
-   * Toggle between play and pause.  
+   * Toggle between play and pause. Returns the new playing state.
    */  
   togglePlayPause() {  
-    this.currentProvider.togglePlayPause();  
+    if (this.isPlaying) {  
+      this.pause();  
+    } else {  
+      this.play();  
+    }  
+    return this.isPlaying;  
+  }
+
+  /**  
+   * True when the active provider is advancing automatically at the moment.
+   */  
+  get isPlaying() {
+    const p = this.currentProvider;
+    if (p === this.simulatedProvider) return Boolean(p.isPlaying);
+    if (p === this.liveProvider) return this.mode === 'live' && Boolean(p.isPolling);
+    return false;
   }  
 
   /**  
    * Advance simulation by one ball (or fetch live updates).  
    */  
   nextBall() {  
-    return this.currentProvider.nextDelivery();  
+    if (this.mode === 'live') {  
+      this.liveProvider.fetchMatchUpdates();  
+      return null;  
+    }  
+    return this.simulatedProvider.nextDelivery();  
   }  
 
   /**  
-   * Update playback speed (demo mode only).  
+   * Update playback speed. Demo mode: ms between balls. Live mode: ms between API polls.
    */  
   setSpeed(ms) {  
-    this.currentProvider.setSpeed(ms);  
+    const speed = Number(ms) || 5000;  
+    this.playbackSpeed = speed;
+    if (this.mode === 'live') {
+      this.liveProvider.setPollInterval(speed);
+    } else {  
+      this.simulatedProvider.setSpeed(speed);  
+    }  
   }  
 
   /**  
@@ -1085,6 +1004,13 @@ class MatchEngine {
    */
   isLiveMode() {
     return this.mode === 'live' && this.liveProvider.hasLiveData();
+  }
+
+  /**
+   * Fetch latest live data once (no polling change). Used by "Next ball" in live mode.
+   */
+  fetchLiveOnce() {
+    if (this.mode === 'live') this.liveProvider.fetchMatchUpdates();
   }
 }  
 

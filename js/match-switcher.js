@@ -323,8 +323,9 @@ class MatchSwitcher {
    */  
   async fetchMatches() {  
     this.isLoading = true;  
-    this.showBanner('no-live-banner', 'Fetching live matches...');  
+    this.showBanner('no-live-banner', 'Fetching live matches…');  
 
+    let data = null;  
     try {  
       const response = await fetch('/api/live-match', {  
         method: 'POST',  
@@ -336,109 +337,47 @@ class MatchSwitcher {
         throw new Error(`HTTP ${response.status}`);  
       }  
 
-      const data = await response.json();  
-
-      if (data.matches && data.matches.length > 0) {  
-        // Categorize matches  
-        this.matches = {  
-          live: [],  
-          upcoming: [],  
-          completed: [],  
-          demo: [{  
-            id: 'demo-csk-mi',  
-            name: 'IND vs PAK (T20 World Cup)',  
-            team1: 'India',  
-            team2: 'Pakistan',  
-            venue: 'Grand Prairie Stadium, Dallas',  
-            date: 'Demo Match',  
-            status: 'demo',  
-            toss: 'Demo mode - any team can win!',
-            source: 'demo'  
-          }]  
-        };  
-
-        data.matches.forEach(match => {  
-          const status = (match.status || '').toLowerCase();  
-
-          if (status === 'live' || status === 'in progress' || status === 'station') {  
-            this.matches.live.push({  
-              ...match,  
-              status: 'live'  
-            });  
-          } else if (status === 'completed' || status === 'finished' || status === 'result') {  
-            this.matches.completed.push({  
-              ...match,  
-              status: 'completed'  
-            });  
-          } else {  
-            this.matches.upcoming.push({  
-              ...match,  
-              status: 'upcoming'  
-            });  
-          }  
-        });  
-
-        // If we have live matches, select the first one  
-        if (this.matches.live.length > 0) {  
-          this.selectMatch(this.matches.live[0].id);  
-          this.fallbackMode = false;  
-          this.hideBanner('fallback-banner');  
-          this.hideBanner('no-live-banner');  
-          this.updateDataSourceInfo('Live API');  
-        } else {  
-          // No live matches - use demo  
-          this.fallbackMode = true;  
-          this.showBanner('fallback-banner', 'No live matches currently on. Running simulated demo match for testing.');  
-          this.hideBanner('no-live-banner');  
-          this.updateDataSourceInfo('Demo (no live matches)');  
-        }  
-      } else {  
-        // Empty response - use demo  
-        this.matches = {  
-          live: [],  
-          upcoming: [],  
-          completed: [],  
-          demo: [{  
-            id: 'demo-csk-mi',  
-            name: 'IND vs PAK (T20 World Cup)',  
-            team1: 'India',  
-            team2: 'Pakistan',  
-            venue: 'Grand Prairie Stadium, Dallas',  
-            date: 'Demo Match',  
-            status: 'demo',  
-            toss: 'Demo mode - any team can win!',
-            source: 'demo'  
-          }]  
-        };  
-
-        this.fallbackMode = true;  
-        this.showBanner('fallback-banner', 'No live matches currently on. Running simulated demo match for testing.');  
-        this.hideBanner('no-live-banner');  
-        this.updateDataSourceInfo('Demo (no live matches)');  
-      }  
+      data = await response.json();  
     } catch (err) {  
       console.warn('[MatchSwitcher] Failed to fetch matches:', err.message);  
-      this.matches = {  
-        live: [],  
-        upcoming: [],  
-        completed: [],  
-        demo: [{  
-          id: 'demo-csk-mi',  
-          name: 'IND vs PAK (T20 World Cup)',  
-          team1: 'India',  
-          team2: 'Pakistan',  
-          venue: 'Grand Prairie Stadium, Dallas',  
-          date: 'Demo Match',  
-          status: 'demo',  
-          toss: 'Demo mode - any team can win!',
-          source: 'demo'  
-        }]  
-      };  
+    }  
 
-      this.fallbackMode = true;  
-      this.showBanner('fallback-banner', 'API unavailable. Running simulated demo match for testing.');  
+    // Start from empty buckets each cycle; positions can change between polls.  
+    const demoMatch = {  
+      id: 'demo-csk-mi',  
+      name: 'CSK vs MI (Simulated demo)',  
+      team1: 'Chennai Super Kings',  
+      team2: 'Mumbai Indians',  
+      venue: 'Wankhede Stadium, Mumbai',  
+      date: 'IPL 2024 · Qualifier 1',  
+      status: 'demo',  
+      toss: 'CSK won the toss and elected to bat first',  
+      source: 'demo'  
+    };  
+    this.matches = { live: [], upcoming: [], completed: [], demo: [demoMatch] };  
+
+    if (data && data.ok && Array.isArray(data.matches) && data.matches.length > 0) {  
+      data.matches.forEach(match => {  
+        const bucket = this.matches[match.status] ? match.status : 'upcoming';  
+        this.matches[bucket].push(match);  
+      });  
+    }
+
+    // Decide what banner the user needs.  
+    this.fallbackMode = this.matches.live.length === 0;  
+    if (this.matches.live.length > 0) {  
+      const n = this.matches.live.length;  
+      this.showBanner('fallback-banner', `${n} live match${n === 1 ? '' : 'es'} right now — click one to start the real-time feed.`);  
       this.hideBanner('no-live-banner');  
-      this.updateDataSourceInfo('Demo (API unavailable)');  
+      this.updateDataSourceInfo('Live API (CricAPI)');  
+    } else if (data && data.ok) {  
+      this.showBanner('fallback-banner', 'No matches in progress right now — showing upcoming fixtures and the demo.');  
+      this.hideBanner('no-live-banner');  
+      this.updateDataSourceInfo('Live API (CricAPI) — no match live');  
+    } else {  
+      this.showBanner('fallback-banner', 'Live API unavailable (no CRICAPI_API_KEY configured, offline, or quota used). Running the simulated demo.');  
+      this.hideBanner('no-live-banner');  
+      this.updateDataSourceInfo('Demo (CricAPI unavailable)');  
     }  
 
     this.isLoading = false;  
@@ -451,30 +390,23 @@ class MatchSwitcher {
   async selectMatch(matchId) {  
     this.currentMatchId = matchId;  
 
-    // Clear selection from all cards  
+    // Highlight the selected card across all columns  
     document.querySelectorAll('.match-card').forEach(card => {  
-      card.classList.remove('selected');  
+      card.classList.toggle('selected', card.dataset.matchId === matchId);  
     });  
 
-    // Find and highlight the selected card  
-    const selectedCard = document.querySelector(`.match-card[data-match-id="${matchId}"]`);  
-    if (selectedCard) {  
-      selectedCard.classList.add('selected');  
+    if (matchId === 'demo-csk-mi') {  
+      this.app.engine.switchToDemo();  
+      this.fallbackMode = false;  
+      this.updateDataSourceInfo('Demo match (simulated)');  
+      this.app.onMatchSwitched && this.app.onMatchSwitched({ mode: 'demo' });  
+      return;  
     }  
 
-    // Reload the app with this match  
-    if (matchId === 'demo-csk-mi') {  
-      // Switch to demo mode  
-      this.app.engine.switchToDemo();  
-      this.app.updateMatchInfo();  
-      this.updateDataSourceInfo('Demo match');  
-    } else {  
-      // For live matches, we would need to load the actual match data  
-      // For now, fall back to demo since we don't have real match data  
-      this.app.engine.switchToDemo();  
-      this.app.updateMatchInfo();  
-      this.updateDataSourceInfo(`Live match: ${matchId}`);  
-    }  
+    // Live match: hand the id to the engine and let the polling provider render the score.
+    this.app.engine.switchToLive(matchId);  
+    this.updateDataSourceInfo('Live API (CricAPI) — polling');  
+    this.app.onMatchSwitched && this.app.onMatchSwitched({ mode: 'live', matchId });  
   }  
 
   /**  
@@ -542,15 +474,17 @@ class MatchSwitcher {
     let timeHtml = '';  
 
     if (type === 'live') {  
-      // For live matches, show score if available  
-      if (match.score) {  
-        scoreHtml = `<div class="match-card-score">${match.score}</div>`;  
-      }  
-      statusHtml = `<div class="match-card-status">LIVE</div>`;  
+      scoreHtml = match.score ? `<div class="match-card-score">${match.score}</div>` : '';  
+      statusHtml = `<div class="match-card-status">● ${match.statusText || 'LIVE'}</div>`;  
+      timeHtml = `<div class="match-card-time">${match.venue || ''}</div>`;  
     } else if (type === 'upcoming') {  
       statusHtml = `<div class="match-card-time">${match.date || 'TBD'}</div>`;  
+      if (match.venue) timeHtml = `<div class="match-card-time">${match.venue}</div>`;  
+    } else if (type === 'completed') {  
+      scoreHtml = match.score ? `<div class="match-card-score">${match.score}</div>` : '';  
+      statusHtml = `<div class="match-card-status">${match.statusText || 'Result'}</div>`;  
     } else if (type === 'demo') {  
-      statusHtml = `<div class="match-card-status">DEMO</div>`;  
+      statusHtml = `<div class="match-card-status">DEMO · ${match.date || ''}</div>`;  
     }  
 
     card.innerHTML = `  

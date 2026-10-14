@@ -1,336 +1,261 @@
-/**  
- * CricIQ — Live Match Data Proxy  
- * Serverless endpoint that provides live cricket match data.  
- * Keys stay in Vercel Environment Variables and NEVER reach the browser.  
- *  
- * POST /api/live-match  
- *   Actions:  
- *     - { action: 'getMatches' } → { matches: [...] }  
- *     - { action: 'getScore', matchId: '...' } → { state, balls, commentary }  
- *  
- * Supported free APIs (configured via env vars):  
- *   - CRICAPI_API_KEY (cricapi.com) - 100 hits/day free tier  
- *   - CRICKETDATA_API_KEY (cricketdata.org) - free tier available  
- *   - RapidAPI key for Cricbuzz/Cricket Live Data  
- *  
- * Fallback: If no API keys configured or API fails, returns demo match data.  
- */  
+/**
+ * CricIQ — Live Match Data Proxy (CricAPI · cricketdata.org)
+ *
+ * POST /api/live-match
+ *   Actions:
+ *     - { action: 'getMatches' }              → { ok, source, matches: [...] }
+ *     - { action: 'getScore', matchId: '...' } → { ok, source, state, matchInfo }
+ *
+ * The CricAPI free tier needs  CRICAPI_API_KEY  in the environment
+ * (Vercel Environment Variables — the key NEVER reaches the browser).
+ *
+ * Normalized match objects returned to the client:
+ *   { id, name, team1, team2, short1, short2, venue, date,
+ *     status: 'live' | 'upcoming' | 'completed',
+ *     statusText, toss, score }        // score is a formatted string e.g. "CSK 48/3 (6.0)"
+ *
+ * getScore state object:
+ *   { runs, wickets, overs, battingTeam, bowlingTeam, teams,
+ *     batsmen: [{name, runs, balls, notOut}], bowler: {name, overs, runs, wickets} | null,
+ *     statusText, matchId, lastUpdated }
+ *
+ * If no key is configured or CricAPI is unreachable, the endpoint responds with
+ * { ok: false, source: 'none' } for getMatches (the client then shows its demo card
+ * only) and { ok: false } for getScore (the client keeps whatever is rendered).
+ * The client never falls back to fake "live" data — demo mode is explicit.
+ */
 
-export const maxDuration = 30;  
+export const maxDuration = 30;
 
-const DEFAULT_POLL_INTERVAL = 5000; // 5 seconds  
+const CRICAPI_BASE = 'https://api.cricapi.com/v1';
 
-// Try to get live match data from configured APIs  
-async function fetchFromCricAPI(apiKey) {  
-  // cricapi.com endpoints  
-  // GET /v1/currentMatches - list of current/upcoming matches  
-  // GET /v1/match_scorecard - scorecard for a match  
-  // GET /v1/match_info - match information  
+const LIVE_STATES = new Set([
+  'in progress', 'live', 'innings break', 'stumps', 'drinks',
+  'dessert break', 'rain delay', 'tea break', 'lunch break', 'powerplay'
+]);
+const DONE_STATES = new Set(['complete', 'completed', 'abandon', 'cancelled', 'canceled', 'result']);
 
-  if (!apiKey) return null;  
+function classify(state) {
+  const s = String(state || '').toLowerCase();
+  if (LIVE_STATES.has(s)) return 'live';
+  for (const d of DONE_STATES) if (s.includes(d)) return 'completed';
+  return 'upcoming';
+}
 
-  try {  
-    // Fetch current matches  
-    const matchesResponse = await fetch(  
-      `https://api.cricapi.com/v1/currentMatches?apikey=${apiKey}&offset=0`  
-    );  
+function shortTeam(name) {
+  if (!name) return '';
+  return String(name).replace(/\s*\(.*\)\s*$/, ''); // CricAPI sometimes appends short name in parens
+}
 
-    if (!matchesResponse.ok) return null;  
+function shortCode(name) {
+  if (!name) return '?';
+  const map = {
+    'india': 'IND', 'australia': 'AUS', 'england': 'ENG', 'pakistan': 'PAK',
+    'south africa': 'SA', 'new zealand': 'NZ', 'sri lanka': 'SL',
+    'bangladesh': 'BAN', 'west indies': 'WI', 'afghanistan': 'AFG',
+    'zimbabwe': 'ZIM', 'ireland': 'IRE', 'scotland': 'SCO', 'netherlands': 'NL',
+    'namibia': 'NAM', 'nepal': 'NEP', 'oman': 'OMA', 'united states': 'USA',
+    'canada': 'CAN', 'uae': 'UAE'
+  };
+  const key = String(name).toLowerCase().trim();
+  return map[key] || String(name).split(' ').map(p => p[0]).join('').toUpperCase().slice(0, 3);
+}
 
-    const matchesData = await matchesResponse.json();  
+function fmtDate(m) {
+  const d = m.date || m.dateTimeGMT;
+  if (!d) return 'TBD';
+  try { return new Date(d).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }); }
+  catch { return String(d); }
+}
 
-    if (matchesData.status === 200 && matchesData.data && matchesData.data.length > 0) {  
-      return {  
-        matches: matchesData.data.map(match => ({  
-          id: match.id,  
-          name: match.name,  
-          team1: match.team_1?.name || match.team_1 || 'Team 1',  
-          team2: match.team_2?.name || match.team_2 || 'Team 2',  
-          venue: match.venue,  
-          date: match.date,  
-          status: match.status,  
-          toss: match.toss || 'Toss not completed',  
-          source: 'cricapi'  
-        })),  
-        source: 'cricapi'  
-      };  
-    }  
-  } catch (err) {  
-    console.warn('[LiveMatch] cricapi error:', err.message);  
-  }  
+function scoreLine(m) {
+  if (!m.score || !m.score.length) return '';
+  return m.score.map(s => `${shortTeam((s.inning || '').split(' v ')[0])} ${s.r || 0}/${s.w || 0}${s.o ? ` (${s.o})` : ''}`).join(' · ');
+}
 
-  return null;  
-}  
+function mapMatch(m) {
+  const teamInfo = Array.isArray(m.teamInfo) && m.teamInfo.length >= 2 ? m.teamInfo : null;
+  const team1 = teamInfo ? teamInfo[0].name : (m.teams && m.teams[0]) || (Array.isArray(m.teams) ? m.teams[0] : 'Team 1');
+  const team2 = teamInfo ? teamInfo[1].name : (m.teams && m.teams[1]) || 'Team 2';
+  const status = classify(m.state || m.status || '');
+  return {
+    id: m.id || String(m.series_id || m.name || Math.random()).slice(-12),
+    name: m.name || `${team1} vs ${team2}`,
+    shortName: `${teamInfo ? teamInfo[0].shortname || shortCode(team1) : shortCode(team1)} vs ${teamInfo ? teamInfo[1].shortname || shortCode(team2) : shortCode(team2)}`,
+    team1: shortTeam(team1), team2: shortTeam(team2),
+    short1: shortCode(team1), short2: shortCode(team2),
+    venue: m.venue || '',
+    date: fmtDate(m),
+    dateTimeGMT: m.dateTimeGMT || '',
+    status,
+    statusText: m.status || m.state || '',
+    toss: (m.tossResults && `${m.tossResults.winner} won the toss and elected to ${m.tossResults.decision}`) || '',
+    score: scoreLine(m),
+    source: 'cricapi'
+  };
+}
 
-async function fetchScoreFromCricAPI(apiKey, matchId) {  
-  if (!apiKey || !matchId) return null;  
+/* ------------------------------ CricAPI fetchers ------------------------------ */
 
-  try {  
-    // Fetch scorecard  
-    const scoreResponse = await fetch(  
-      `https://api.cricapi.com/v1/match_scorecard?apikey=${apiKey}&id=${matchId}`  
-    );  
+async function fetchCurrentMatches(apiKey) {
+  try {
+    const res = await fetch(`${CRICAPI_BASE}/currentMatches?apikey=${encodeURIComponent(apiKey)}&offset=0`);
+    if (!res.ok) { console.warn('[LiveMatch] currentMatches HTTP', res.status); return null; }
+    const data = await res.json();
+    if (data.status !== 'success' || !Array.isArray(data.data)) {
+      console.warn('[LiveMatch] currentMatches rejected, reason:', data.reason || data.status);
+      return null;
+    }
+    return data.data;
+  } catch (err) {
+    console.warn('[LiveMatch] currentMatches error:', err.message);
+    return null;
+  }
+}
 
-    if (!scoreResponse.ok) return null;  
+async function fetchScorecard(apiKey, matchId) {
+  try {
+    const res = await fetch(`${CRICAPI_BASE}/match_scorecard?apikey=${encodeURIComponent(apiKey)}&id=${encodeURIComponent(matchId)}`);
+    if (!res.ok) { console.warn('[LiveMatch] scorecard HTTP', res.status); return null; }
+    const data = await res.json();
+    if (data.status !== 'success' || !data.data) {
+      console.warn('[LiveMatch] scorecard rejected, reason:', data.reason || data.status);
+      return null;
+    }
+    return data.data;
+  } catch (err) {
+    console.warn('[LiveMatch] scorecard error:', err.message);
+    return null;
+  }
+}
 
-    const scoreData = await scoreResponse.json();  
+/* --------------------------- Scorecard → state mapping --------------------------- */
 
-    if (scoreData.status === 200 && scoreData.data) {  
-      const matchData = scoreData.data;  
+function mapScorecardToState(match, matchId) {
+  const scorecard = Array.isArray(match.scorecard) ? match.scorecard : [];
+  if (!scorecard.length) return null;
 
-      // Parse the scorecard into a simplified format  
-      const scorecard = matchData.scorecard || {};  
+  // The most recently started innings is the last one with any overs bowled.
+  let innings = null;
+  for (const inn of scorecard) {
+    const overs = parseFloat(inn.overs) || 0;
+    if (overs > 0) innings = inn;
+  }
+  innings = innings || scorecard[scorecard.length - 1];
 
-      // Find the team that's currently batting (not yet bowled out, or chasing)  
-      let battingTeam = null;  
-      let bowlingTeam = null;  
+  const battingTeam = innings.batting_team || '';
+  const bowlingTeam = findBowlingTeam(scorecard, battingTeam, match);
 
-      if (matchData.middle || matchData.attend_league || matchData.innings) {  
-        // Match is in progress  
-        const innings = matchData.innings || [];  
+  const runs = innings.runs || 0;
+  const wicketsNumber = innings.wickets ?? innings.wkts ?? 0;
+  const overs = innings.overs != null ? String(innings.overs) : '0.0';
 
-        if (innings.length > 0) {  
-          // Check first innings  
-          const firstInning = innings[0];  
-          if (firstInning.batting && firstInning.batting.team) {  
-            battingTeam = firstInning.batting.team;  
-          }  
-          if (innings.length > 1) {  
-            bowlingTeam = innings[0].bowling?.team || '';  
-          }  
-        }  
-      }  
+  // Active batsmen: the listed batters who are not yet out (CricAPI marks with out/dismissal or "?")
+  const batters = Array.isArray(innings.batters) ? innings.batters.filter(b => {
+    const outFlag = b['out'] ?? b.dismissed;
+    const shownOut = outFlag === true || (outFlag && outFlag !== 'no' && outFlag !== 'not out');
+    return !shownOut;
+  }) : [];
 
-      // Simple state for the demo  
-      const state = {  
-        runs: matchData.score?.[battingTeam]?.runs || 0,  
-        wickets: matchData.score?.[battingTeam]?.wickets || 0,  
-        overs: matchData.score?.[battingTeam]?.overs || '0.0',  
-        battingTeam: battingTeam || 'Unknown',  
-        bowlingTeam: bowlingTeam || 'Unknown',  
-        lastUpdated: new Date().toISOString()  
-      };  
+  const batsmen = batters.slice(0, 2).map(b => ({
+    name: b.name || b.player || '',
+    runs: b.r || 0,
+    balls: b.b || 0,
+    notOut: true
+  }));
 
-      // Parse recent balls from commentary if available  
-      const balls = [];  
-      if (matchData.commentary && matchData.commentary.length > 0) {  
-        // Get last 12 balls for context  
-        const recentCommentary = matchData.commentary.slice(-12);  
-        recentCommentary.forEach((comment, index) => {  
-          balls.push({  
-            id: balls.length,  
-            over: Math.floor(index / 6),  
-            ballInOver: (index % 6) + 1,  
-            overDisplay: `${Math.floor(index / 6)}.${index % 6 + 1}`,  
-            commentary: comment,  
-            isKeyMoment: false,  
-            runs: 0,  
-            extras: 0,  
-            extraType: null,  
-            totalScore: state.runs,  
-            totalWickets: state.wickets  
-          });  
-        });  
-      }  
+  // Active bowler heuristic: the bowler on the bowling list with the most overs so far is
+  // most likely still in the attack (CricAPI scorecards have no "current bowler" field).
+  let bowler = null;
+  const bowlingInnings = scorecard.find(i => (i.batting_team || '') === bowlingTeam) || null;
+  const bowlers = bowlingInnings && Array.isArray(bowlingInnings.bowlers) ? bowlingInnings.bowlers : [];
+  if (bowlers.length) {
+    const best = bowlers.reduce((a, b) => (parseFloat(b.o) || 0) > (parseFloat(a.o) || 0) ? b : a, bowlers[0]);
+    bowler = {
+      name: best.name || best.player || '',
+      overs: best.o || '0.0',
+      runs: best.r || 0,
+      wickets: best.w || 0
+    };
+  }
 
-      return {  
-        state,  
-        balls,  
-        commentary: matchData.commentary || []  
-      };  
-    }  
-  } catch (err) {  
-    console.warn('[LiveMatch] cricapi score error:', err.message);  
-  }  
+  const teams = Array.isArray(match.teams) ? match.teams : (match.teamInfo || []).map(t => t.name);
 
-  return null;  
-}  
+  return {
+    runs, wickets: wicketsNumber, overs,
+    battingTeam, bowlingTeam,
+    teams,
+    batsmen, bowler,
+    statusText: match.status || match.state || '',
+    matchId,
+    lastUpdated: new Date().toISOString()
+  };
+}
 
-// Fallback demo match data (simulated)  
-const DEMO_MATCH = {  
-  matches: [{  
-    id: 'demo-csk-mi',  
-    name: 'CSK vs MI - IPL 2024 Qualifier 1',  
-    team1: 'Chennai Super Kings',  
-    team2: 'Mumbai Indians',  
-    venue: 'Wankhede Stadium, Mumbai',  
-    date: 'May 26, 2024',  
-    status: 'demo',  
-    toss: 'CSK won the toss and elected to bat first',  
-    source: 'demo'  
-  }],  
-  source: 'demo'  
-};  
+function findBowlingTeam(scorecard, battingTeam, match) {
+  const inn = scorecard.find(i => (i.batting_team || '') === battingTeam);
+  if (inn && inn.bowling_team) return inn.bowling_team;
+  const teams = Array.isArray(match.teams) ? match.teams : (match.teamInfo || []).map(t => t.name);
+  return teams.find(t => t !== battingTeam) || '';
+}
 
-// Demo balls for live simulation  
-const DEMO_BALLS = [  
-  {  
-    id: 0,  
-    over: 0,  
-    ballInOver: 1,  
-    overDisplay: '0.1',  
-    bowler: 'Jasprit Bumrah',  
-    batsmanOnStrike: 'Ruturaj Gaikwad',  
-    batsmanNonStrike: 'Devon Conway',  
-    runs: 0,  
-    batsmanRuns: 0,  
-    extras: 0,  
-    extraType: null,  
-    totalScore: 0,  
-    totalWickets: 0,  
-    isWicket: false,  
-    wicketType: null,  
-    dismissedBatsman: null,  
-    fielder: null,  
-    isBoundary: false,  
-    isSix: false,  
-    isDot: true,  
-    commentary: 'Good length just outside off stump, Gaikwad shoulders arms and lets it go through to the keeper.',  
-    isKeyMoment: false  
-  },  
-  {  
-    id: 1,  
-    over: 0,  
-    ballInOver: 2,  
-    overDisplay: '0.2',  
-    bowler: 'Jasprit Bumrah',  
-    batsmanOnStrike: 'Ruturaj Gaikwad',  
-    batsmanNonStrike: 'Devon Conway',  
-    runs: 4,  
-    batsmanRuns: 4,  
-    extras: 0,  
-    extraType: null,  
-    totalScore: 4,  
-    totalWickets: 0,  
-    isWicket: false,  
-    wicketType: null,  
-    dismissedBatsman: null,  
-    fielder: null,  
-    isBoundary: true,  
-    isSix: false,  
-    isDot: false,  
-    commentary: 'Overpitched on the pads! Gaikwad flicks it beautifully through midwicket to the boundary.',  
-    isKeyMoment: false  
-  },  
-  {  
-    id: 2,  
-    over: 0,  
-    ballInOver: 3,  
-    overDisplay: '0.3',  
-    bowler: 'Jasprit Bumrah',  
-    batsmanOnStrike: 'Ruturaj Gaikwad',  
-    batsmanNonStrike: 'Devon Conway',  
-    runs: 0,  
-    batsmanRuns: 0,  
-    extras: 0,  
-    extraType: null,  
-    totalScore: 4,  
-    totalWickets: 0,  
-    isWicket: false,  
-    isKeyMoment: true,  
-    keyMomentType: 'drs_review',  
-    keyMomentDetail: 'DRS review: LBW appeal against Gaikwad - NOT OUT (impact outside off)',  
-    commentary: 'DRS REVIEW! Full delivery angling in, strikes Gaikwad on the front pad. Umpire says NOT OUT.',  
-  }  
-];  
+/* --------------------------------- Handler --------------------------------- */
 
-export default async function handler(req, res) {  
-  // Only allow POST  
-  if (req.method !== 'POST') {  
-    return res.status(405).json({ error: 'Method not allowed. Use POST.' });  
-  }  
+export default async function handler(req, res) {
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed. Use POST.' });
+  }
 
-  let body = {};  
-  try {  
-    body = typeof req.body === 'object' ? req.body : JSON.parse(req.body || '{}');  
-  } catch {  
-    // body may already be parsed  
-  }  
+  let body = {};
+  try {
+    body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+  } catch { body = {}; }
 
-  const action = body?.action || 'getMatches';  
+  const action = body.action || 'getMatches';
+  const apiKey = process.env.CRICAPI_API_KEY;
 
-  // Check if we have any live API keys configured  
-  const hasCricAPI = Boolean(process.env.CRICAPI_API_KEY);  
-  const hasCricketData = Boolean(process.env.CRICKETDATA_API_KEY);  
+  if (action === 'getMatches') {
+    if (!apiKey) {
+      return res.status(200).json({ ok: false, source: 'none', matches: [] });
+    }
+    const raw = await fetchCurrentMatches(apiKey);
+    if (!raw) {
+      return res.status(200).json({ ok: false, source: 'cricapi', matches: [] });
+    }
+    // Popular leagues first, so the ribbon stays focused during world-cup noise.
+    const PRIORITY = /(indian premier league|ipl|world cup|wpl|t20blast|big bash|psl|twenty20 international|t20i)/i;
+    raw.sort((a, b) => {
+      const pa = PRIORITY.test(a.name || '') ? 0 : 1;
+      const pb = PRIORITY.test(b.name || '') ? 0 : 1;
+      return pa - pb;
+    });
+    return res.status(200).json({
+      ok: true, source: 'cricapi',
+      matches: raw.map(mapMatch)
+    });
+  }
 
-  // If no API keys configured, always return demo data  
-  if (!hasCricAPI && !hasCricketData) {  
-    console.log('[LiveMatch] No API keys configured, using demo data');  
+  if (action === 'getScore') {
+    const matchId = body.matchId;
+    if (!matchId) return res.status(400).json({ error: 'matchId is required' });
+    if (!apiKey) return res.status(200).json({ ok: false, source: 'none' });
 
-    if (action === 'getMatches') {  
-      return res.status(200).json(DEMO_MATCH);  
-    }  
+    const match = await fetchScorecard(apiKey, matchId);
+    if (!match) return res.status(200).json({ ok: false, source: 'cricapi', matchId });
 
-    if (action === 'getScore') {  
-      const matchId = body?.matchId;  
-      if (matchId === 'demo-csk-mi') {  
-        return res.status(200).json({  
-          state: {  
-            runs: 48,  
-            wickets: 3,  
-            overs: '6.0',  
-            battingTeam: 'CSK',  
-            bowlingTeam: 'MI',  
-            lastUpdated: new Date().toISOString()  
-          },  
-          balls: DEMO_BALLS,  
-          commentary: DEMO_BALLS.map(b => b.commentary)  
-        });  
-      } else {  
-        return res.status(404).json({ error: 'Match not found' });  
-      }  
-    }  
+    const state = mapScorecardToState(match, matchId);
+    if (!state) return res.status(200).json({ ok: false, source: 'cricapi', matchId });
 
-    return res.status(400).json({ error: 'Invalid action. Use getMatches or getScore.' });  
-  }  
+    return res.status(200).json({
+      ok: true, source: 'cricapi', matchId, state,
+      matchInfo: {
+        name: match.name,
+        venue: match.venue,
+        date: fmtDate(match),
+        statusText: match.status || match.state
+      }
+    });
+  }
 
-  // We have API keys, try to fetch real data  
-  try {  
-    if (action === 'getMatches') {  
-      // Try cricapi first  
-      const cricapiData = await fetchFromCricAPI(process.env.CRICAPI_API_KEY);  
-
-      if (cricapiData && cricapiData.matches && cricapiData.matches.length > 0) {  
-        return res.status(200).json(cricapiData);  
-      }  
-
-      // Fall back to demo if no live matches  
-      console.log('[LiveMatch] No live matches from API, using demo data');  
-      return res.status(200).json(DEMO_MATCH);  
-    }  
-
-    if (action === 'getScore') {  
-      const matchId = body?.matchId;  
-
-      // Try cricapi  
-      const cricapiScore = await fetchScoreFromCricAPI(process.env.CRICAPI_API_KEY, matchId);  
-
-      if (cricapiScore) {  
-        return res.status(200).json(cricapiScore);  
-      }  
-
-      // Fall back to demo  
-      if (matchId === 'demo-csk-mi') {  
-        return res.status(200).json({  
-          state: {  
-            runs: 48,  
-            wickets: 3,  
-            overs: '6.0',  
-            battingTeam: 'CSK',  
-            bowlingTeam: 'MI',  
-            lastUpdated: new Date().toISOString()  
-          },  
-          balls: DEMO_BALLS,  
-          commentary: DEMO_BALLS.map(b => b.commentary)  
-        });  
-      }  
-
-      return res.status(404).json({ error: 'Match not found' });  
-    }  
-
-    return res.status(400).json({ error: 'Invalid action.' });  
-  } catch (err) {  
-    console.error('[LiveMatch] Error:', err);  
-    return res.status(500).json({ error: 'Internal server error' });  
-  }  
-}  
+  return res.status(400).json({ error: 'Invalid action. Use getMatches or getScore.' });
+}

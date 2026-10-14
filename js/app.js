@@ -8,6 +8,7 @@ class CricIQApp {
     this.engine = new MatchEngine(window.MATCH_DATA);
     this.assistant = new AIAssistant();
     this.switcher = null;
+    this.playbackSpeed = 8000; // matches the default Speed dropdown value
     this.el = {}; // DOM refs, populated in bindDOM
     this.lastBallOver = -1;
     this.matchInfo = {
@@ -26,6 +27,12 @@ class CricIQApp {
   init() {
     this.bindDOM();
     this.bindEvents();
+
+    // Engine ↔ app wiring lives here so playbook callbacks are always bound.
+    this.engine.onBallPlayed = (ball, index) => this.onBallPlayed(ball, index);
+    this.engine.onMatchEnd = () => this.onMatchEnd();
+    this.engine.setSpeed(this.playbackSpeed);
+
     this.updateMatchInfo();
     this.showInitialState();
 
@@ -54,6 +61,11 @@ class CricIQApp {
       'ai-spinner'
     ];
     ids.forEach(id => { this.el[id] = document.getElementById(id); });
+    // .scorecard-card has no id attribute in the markup — grab it by class so
+    // boundary/wicket flash effects and live updates still target the right card.
+    if (!this.el.scorecard) {
+      this.el.scorecard = document.querySelector('.scorecard-card');
+    }
   }
 
   bindEvents() {
@@ -69,6 +81,7 @@ class CricIQApp {
 
     this.el['speed-selector'].addEventListener('change', (e) => {
       this.engine.setSpeed(e.target.value);
+      this.showAIMessage(`Speed updated: one update every ${Number(e.target.value) / 1000}s${this.engine.getMode && this.engine.getMode() === 'live' ? ' (live polling)' : ''}.`);
     });
 
     this.el['btn-what-happened'].addEventListener('click', () => {
@@ -172,7 +185,7 @@ class CricIQApp {
   }
 
   updateMatchInfo() {
-    // Update match info from engine state
+    // Update match info from engine state (demo meta, or live placeholder meta)
     const meta = this.engine.getMatchMeta();
     if (meta.team1) {
       this.matchInfo.team1 = meta.team1.short || meta.team1; 
@@ -191,6 +204,12 @@ class CricIQApp {
     }
     if (meta.toss) {
       this.matchInfo.toss = meta.toss;
+    }
+
+    // Only overwrite the header block when the meta actually carries values.
+    if (meta.team1) {
+      const tag = document.querySelector('.csk-tag');
+      if (tag) tag.textContent = meta.team1.short || meta.team1.name || meta.team1;
     }
 
     // Update DOM
@@ -219,13 +238,123 @@ class CricIQApp {
   /* --------------------------- Engine callbacks --------------------------- */
 
   onBallPlayed(ball, index) {
+    // Live mode pushes a whole state object instead of a scripted ball.
+    if (this.engine.getMode && this.engine.getMode() === 'live') {
+      this.updateLiveScorecard(ball);
+      return;
+    }
     this.updateScorecard(ball);
     this.addBallToTimeline(ball, index);
     this.addCommentaryEntry(ball);
     this.updatePlaybackControls();
   }
 
+  updateLiveScorecard(state) {
+    if (!state || state.awaitingData) {
+      this.el['team-score'].textContent = '–/–';
+      this.el['team-overs'].textContent = '(awaiting feed)';
+      return;
+    }
+
+    const short = (name) => this.getTeamShort_(name);
+    this.el['team-score'].textContent = `${state.runs}/${state.wickets}`;
+    this.el['team-overs'].textContent = `(${state.overs} ov)`;
+    document.querySelector('.team-name.csk-tag').textContent = short(state.battingTeam);
+    this.engine.battingTeamLabel = short(state.battingTeam);
+
+    const bm = (state.batsmen || []);
+    const fmt = (b) => b ? `${this.formatBatsmanLabel(b.name)} ${b.runs}${b.notOut ? '*' : ''} (${b.balls})` : '–';
+    this.el['batsman-strike'].innerHTML =
+      `<span class="strike-marker">●</span> ${fmt(bm[0])}`;
+    this.el['batsman-nonstrike'].textContent = fmt(bm[1] || null);
+
+    const b = state.bowler;
+    this.el['bowler-info'].textContent =
+      b ? `${this.formatBatsmanLabel(b.name)} ${b.overs}-${b.wickets}-${b.runs}` : 'Awaiting bowler data';
+
+    if (this.engine.lastLiveState && this.engine.lastLiveState.runs !== undefined &&
+        state.runs > this.engine.lastLiveState.runs) {
+      this.flashClass(this.el.scorecard, 'boundary-flash');
+    }
+    if (this.engine.lastLiveState && this.engine.lastLiveState.wickets !== undefined &&
+        state.wickets > this.engine.lastLiveState.wickets) {
+      this.flashClass(this.el.scorecard, 'wicket-flash');
+    }
+    this.engine.lastLiveState = state;
+
+    this.el['ball-counter'].textContent = `Live · updated ${new Date(state.lastUpdated || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`;
+    this.updatePlaybackControls();
+  }
+
+  getTeamShort_(name) {
+    if (!name) return '?';
+    const known = this.switcher && this.switcher.getTeamShort ? this.switcher : null;
+    return known ? known.getTeamShort(name) : name.slice(0, 3).toUpperCase();
+  }
+
+  /**
+   * Called by MatchSwitcher when the user picks another match. Resets all panels.
+   */
+  onMatchSwitched({ mode, matchId }) {
+    // Stop old visuals.
+    this.el['ball-timeline'].innerHTML = '';
+    this.el['commentary-feed'].innerHTML = '';
+    this.lastBallOver = -1;
+    this.engine.lastLiveState = null;
+
+    // New commentary placeholder.
+    const entry = document.createElement('div');
+    entry.className = 'commentary-entry';
+    entry.innerHTML = `
+      <div class="commentary-header">
+        <span class="over-badge">${mode === 'live' ? 'API' : '0.0'}</span>
+        <span class="runs-badge dot">0</span>
+      </div>
+      <p class="commentary-text">${mode === 'live'
+        ? 'Connecting to the live CricAPI feed — first update arriving… Press <strong>Pause</strong> anytime to freeze polling.'
+        : 'Simulated powerplay ready. Press <strong>Play</strong> to start.'}</p>`;
+    this.el['commentary-feed'].appendChild(entry);
+
+    this.el['btn-next-ball'].disabled = false;
+    this.el['team-score'].textContent = mode === 'live' ? '–/–' : '0/0';
+    this.el['team-overs'].textContent = mode === 'live' ? '(awaiting feed)' : '(0.0 ov)';
+
+    if (mode === 'live') {
+      document.querySelector('.score-status-label').textContent = 'LIVE';
+    } else {
+      document.querySelector('.score-status-label').textContent = 'Powerplay';
+      document.querySelector('.team-name.csk-tag').textContent = this.matchInfo.team1 || 'CSK';
+      this.el['batsman-strike'].innerHTML = '<span class="strike-marker">●</span> ';
+      this.el['batsman-nonstrike'].textContent = '';
+      this.el['bowler-info'].textContent = '';
+    }
+
+    this.updateMatchInfo();
+    this.updatePlaybackControls();
+
+    // Live mode auto-starts polling (that IS liveness); demo stays paused until Play.
+    if (mode !== 'live') {
+      this.showAIMessage('Demo match selected. Press Play to simulate the powerplay.');
+    }
+  }
+
   onMatchEnd() {
+    if (this.engine.getMode && this.engine.getMode() === 'live') {
+      const st = this.engine.getMatchState();
+      this.el['btn-next-ball'].disabled = true;
+      this.el['btn-play-pause'].disabled = true;
+      const entry = document.createElement('div');
+      entry.className = 'commentary-entry key-moment';
+      entry.innerHTML = `
+        <div class="commentary-header">
+          <span class="over-badge">END</span>
+          <span class="runs-badge boundary">🏁</span>
+        </div>
+        <p class="commentary-text">Match over — ${st.battingTeam || ''} ${st.runs}/${st.wickets} (${st.overs}). ${st.statusText || ''}</p>`;
+      this.el['commentary-feed'].prepend(entry);
+      return;
+    }
+
     this.el['btn-next-ball'].disabled = true;
     this.updatePlaybackControls();
 
@@ -279,6 +408,7 @@ class CricIQApp {
   }
 
   flashClass(node, cls) {
+    if (!node) return;
     node.classList.remove(cls);
     // force reflow so repeated flashes re-animate
     void node.offsetWidth;
@@ -375,14 +505,29 @@ class CricIQApp {
   }
 
   updatePlaybackControls() {
-    const isPlaying = this.engine.isPlaying;
+    const isPlaying = Boolean(this.engine.isPlaying);
     this.el['btn-play-pause'].classList.toggle('btn-primary', !isPlaying);
     this.el['btn-play-pause'].classList.toggle('btn-ghost', isPlaying);
     this.syncPlayIcon(isPlaying);
-    this.el['ball-counter'].textContent =
-      `Ball ${this.engine.currentBallIndex + 1} of ${this.engine.totalBalls}`;
-    this.el['btn-next-ball'].disabled =
-      this.engine.currentBallIndex >= this.engine.totalBalls - 1;
+
+    const live = this.engine.getMode && this.engine.getMode() === 'live';
+    if (live) {
+      // No scripted ball counter in live mode; polling cadence is the story.
+      this.el['ball-counter'].textContent = this.el['ball-counter'].textContent.startsWith('Live')
+        ? this.el['ball-counter'].textContent
+        : 'Live feed';
+    } else {
+      this.el['ball-counter'].textContent =
+        `Ball ${Math.max(this.engine.currentBallIndex + 1, 0)} of ${this.engine.totalBalls}`;
+    }
+
+    if (live) {
+      // Nudge refetch while paused so users can "refresh" manually.
+      this.el['btn-next-ball'].disabled = false;
+    } else {
+      this.el['btn-next-ball'].disabled =
+        this.engine.currentBallIndex >= this.engine.totalBalls - 1;
+    }
   }
 
   syncPlayIcon(isPlaying) {

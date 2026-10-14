@@ -7,7 +7,9 @@
     "test": "tests"
   },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "node server.mjs",
+    "start": "node server.mjs",
+    "test": "node tests/verify-data.js && node tests/test-ai-proxy.mjs"
   },
   "repository": {
     "type": "git",
