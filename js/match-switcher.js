@@ -92,12 +92,12 @@ class MatchSwitcher {
       </div>  
     `;  
 
-    // Insert after header content  
-    const headerStatus = header.querySelector('.header-status');  
-    if (headerStatus) {  
-      header.insertBefore(ribbon, headerStatus);  
+    // Insert at the beginning of header (before header-content)  
+    const headerContent = header.querySelector('.header-content');  
+    if (headerContent && headerContent.parentNode === header) {  
+      header.insertBefore(ribbon, headerContent);  
     } else {  
-      header.appendChild(ribbon);  
+      header.prepend(ribbon);  
     }  
 
     // Add styles for match ribbon  
