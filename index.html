@@ -25,6 +25,9 @@
         </div>
 
         <div style="display:flex;align-items:center;gap:8px;">
+          <button id="btn-help" class="icon-btn" aria-label="Show a quick tour of CricIQ" title="Quick tour">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          </button>
           <button id="theme-toggle" class="icon-btn theme-toggle" aria-label="Toggle light or dark mode">
             <!-- Lucide: Sun -->
             <svg id="theme-toggle-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>
@@ -104,6 +107,10 @@
               <!-- Populated by MatchEngine -->
             </div>
           </div>
+          <p id="timeline-hint" class="timeline-hint">
+            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18l6-6-6-6"/></svg>
+            Tap any ball to ask about that delivery
+          </p>
         </section>
 
         <!-- Playback controls -->
@@ -151,10 +158,10 @@
           </div>
 
           <div class="ai-buttons">
-            <button id="btn-what-happened" class="ai-btn ai-btn-accent" aria-label="Summarize what happened in the session">
+            <button id="btn-what-happened" class="ai-btn ai-btn-accent" aria-label="Explain what just happened on the latest ball">
               <!-- Lucide: FileText -->
               <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 2H9.5a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h10.5a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="9.5" y1="12" x2="14.5" y2="12"/><line x1="9.5" y1="16" x2="14.5" y2="16"/></svg>
-              <span class="ai-btn-label">What happened</span>
+              <span class="ai-btn-label">What just happened</span>
               <span class="ai-btn-count">Session</span>
             </button>
             <button id="btn-catch-up" class="ai-btn" aria-label="Catch up on the match so far">
@@ -163,10 +170,10 @@
               <span class="ai-btn-label">Catch me up</span>
               <span class="ai-btn-count">Fast</span>
             </button>
-            <button id="btn-ask" class="ai-btn" aria-label="Ask a free question about the match">
+            <button id="btn-ask" class="ai-btn" aria-label="Ask me anything about the match">
               <!-- Lucide: MessageCircle -->
               <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5a8.5 8.5 0 1 1-17 0 8.5 8.5 0 0 1 17 0z"/><path d="M8.5 13.5h7"/></svg>
-              <span class="ai-btn-label">Ask anything</span>
+              <span class="ai-btn-label">Ask me anything</span>
             </button>
           </div>
 
@@ -248,6 +255,7 @@
   <script src="js/match-engine.js"></script>
   <script src="js/ai-assistant.js"></script>
   <script src="js/match-switcher.js"></script>
+  <script src="js/tour.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

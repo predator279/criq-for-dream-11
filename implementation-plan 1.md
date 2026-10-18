@@ -864,3 +864,294 @@ For reference when pitching or expanding later:
 4. **Gemini Vision** — analyze short video clips of confusing moments
 5. **Highlightly Cricket API** — highlight clip metadata on RapidAPI (100 free req/day)
 6. **Data Adapter Pattern** — the app should be architected so `MatchEngine` can accept data from either the simulated JSON or a live API adapter, with identical interface
+
+---
+
+## 7. Real-Time Ingestion Architecture (v2, October 2026)
+
+> Supersedes §3.4's dual-provider shape and implements reference item 6. Verified against
+> live data on 2026-10-18 (see §7.9).
+
+### 7.1 What is wrong with the current ingestion
+
+| Problem | Consequence today |
+|---|---|
+| `SimulatedProvider` is a `setInterval` over an in-memory array | Not a feed: no epochs, no resume, no late-join, no multi-viewer sync |
+| `LivePollingProvider` returns `getBallsPlayed() === []` | AI features silently degrade in live mode — no balls, no commentary, no key moments |
+| Two unrelated state shapes (`ball` vs `state`) | The UI and AI layer each need branches for "demo" vs "live" |
+| Polling returns a **snapshot**, not **events** | "What happened?" cannot answer "what changed since I last looked" |
+| Playback is a 37-ball powerplay script | The 3 AI features have almost no match to work with |
+
+**Goal:** one append-only event stream per match, produced by pluggable sources, consumed
+identically by the UI and the AI layer. A real feed then becomes a new adapter, not a rewrite.
+
+### 7.2 Canonical contract: `FeedEvent`
+
+```javascript
+{
+  seq: 42,                       // monotonic per match, starts at 1. THE resume/dedupe key.
+  matchId: "1535465",
+  type: "delivery",              // delivery | over_end | innings_start | innings_end
+                                 // | review | milestone | match_end | score_update
+  innings: 1,
+  team: "Gujarat Titans",        // batting side
+  atMs: 1542000,                 // virtual match clock (ms since innings 1 ball 1)
+  emittedAt: 1750000000000,      // wall clock when the feed produced it
+  over: { index: 3, ball: 4, display: "3.4", legal: true },
+  acting: { batter: "B Sai Sudharsan", nonStriker: "Shubman Gill", bowler: "B Kumar" },
+  runs: { batter: 0, extras: 0, total: 0, extraType: null },
+  score: { runs: 26, wickets: 2 },   // running score AFTER this event
+  wickets: [],                       // [{ playerOut, kind, fielders: [] }]
+  text: "B Kumar to B Sai Sudharsan, OUT! caught by JM Sharma.",
+  keyMoment: null,                   // { type, detail } when the feed flags one
+  source: "cricsheet"               // scripted | cricsheet | cricapi | sportmonks | …
+}
+```
+
+Rules:
+
+1. **`seq` is the only identity.** Never key off `over.display` (wides/no-balls repeat a label).
+2. **Envelope is transport-agnostic** — the same object goes over HTTP, SSE, or a WebSocket.
+3. **Facts only, no narration.** `text` is a deterministic one-liner; Gemini writes the story.
+4. **Corrections** reuse `seq` and bump `revision` (default `1`) — never a new ball.
+5. Consumers keep `lastSeq`; a gap means "refetch snapshot", never "guess".
+
+### 7.3 Provider contract (server-side, three implementations)
+
+```javascript
+class FeedProvider {
+  async listMatches()                        // → catalogue for the hub
+  async getSnapshot(matchId)                 // → { match, state, lastSeq }
+  async readSince(matchId, seq)              // → { events: FeedEvent[], lastSeq, complete }
+}
+```
+
+| Provider | Source | Behaviour |
+|---|---|---|
+| `ScriptedProvider` | `MATCH_DATA` (existing) | Keeps the current demo working; wrapped into events so it stops being a special case |
+| `ReplayProvider` | **Cricsheet** archive | Real finished matches, replayed through a virtual clock (§7.5) |
+| `LiveApiProvider` | CricAPI / future paid feed | Diff-based event synthesis from snapshots (§7.6) |
+
+The client only ever talks to `POST /api/feed` with `{ action, matchId, sinceSeq }`. It never
+imports a provider.
+
+### 7.4 Transport: delta polling now, SSE seam later
+
+The app deploys as static + Vercel functions (30 s max duration), so a persistent push channel
+is not available for free. Use the protocol that works everywhere **and** survives a real feed:
+
+```
+GET  /api/feed?matchId=…&sinceSeq=41
+→    { ok, matchId, lastSeq: 44, complete: false,
+       events: [ …seq 42,43,44 ], state: { runs, wickets, overs, … } }
+```
+
+- Client polls every **2 s** in replay mode (cheap, local compute, no upstream quota) and every
+  **60–90 s** in live mode (quota-bound — see §7.6).
+- Empty response → `204`, so idle polls cost almost nothing.
+- `Last-Event-ID`-compatible: an SSE adapter at `/api/stream` can reuse `seq` verbatim when a
+  long-running host is available (`server.mjs` locally, or a paid/edge host later).
+- Snapshot + `sinceSeq` is exactly how Sportradar/SportMonks push feeds resume, so the same
+  client code works unchanged against a paid feed.
+
+**UI rule:** the timeline is the event log, not a diff of snapshots. One render path for
+scripted, replay, and live.
+
+### 7.5 Replay mode on real match data (the free, always-available path)
+
+**Source: [Cricsheet](https://cricsheet.org)** — open ball-by-ball archive, ODC-By licence.
+
+Measured on 2026-10-18 by `scripts/cricsheet-probe.mjs`:
+
+| Fact | Value |
+|---|---|
+| IPL matches available | **1,243** (2008-04-18 → 2026-05-31), 2-innings 1,221, super-over 16 |
+| Archive size / per match | 5.2 MB zipped · ≈88 KB per match |
+| Events per match | **≈240** |
+| Replay length at 1× | **median 116 min**, p95 121 min (matches a real T20 broadcast) |
+| Fields present | venue, city, date, teams, event/stage, toss winner N/A, outcome, player-of-match, full delivery detail |
+| Fields missing | per-ball timestamps, commentary text, toss, free-hit flag, DRS |
+
+Missing fields are why §7.2 separates **facts** (`text` one-liner) from **narration** (AI).
+
+#### Virtual clock (pacing)
+
+No timestamps exist in the archive, so timing is modelled, and labelled as such:
+
+| Beat | Delay |
+|---|---|
+| Base delivery | 24 s |
+| + six | +5 s |
+| + four | +3 s |
+| + wicket | +8 s |
+| Over break | +20 s |
+| Innings break | +120 s (compressed from ~18 min) |
+| Speed presets | 1× · 4× · 12× · Instant |
+
+`atMs` is accumulated once at ingest, so the client needs no scheduler: it asks for
+`events where atMs <= now - startedAt`, which makes resume and multi-tab sync trivial.
+
+#### "No live match" UX
+
+When no fixture is live, the hub shows a **Replay** column of curated real matches
+(8–12 vendored into `data/matches/`): the most recent IPL finals, a super-over, a
+last-ball finish, a collapse, a 200+ chase. Each card shows teams, date, venue, result
+hidden until replay ends.
+
+- **Every replay starts at `seq 1` (ball one).** No mid-match join, no channel mode.
+- A full match at 1× runs ~116 min, so the fix for length is **speed, not truncation**:
+
+| Preset | Ball cadence | Full T20 runtime |
+|---|---|---|
+| 1× | ~24 s | ~116 min |
+| 4× | ~6 s | ~29 min |
+| 8× (default) | ~3 s | ~15 min |
+| 20× | ~1.2 s | ~6 min |
+| Instant | 0 | step through manually |
+
+- Plus **"Jump to innings 2"** and **"Jump to over 16"** — the replay is always
+  replaying ball one unless the user chooses to skip; skipped events are still in the
+  log, so the scorecard stays correct and "Catch Me Up" still covers them.
+- Live matches cannot start at ball one (by definition you join mid-innings); the feed
+  delivers `seq 1 = the first event after you subscribed` and the snapshot carries the
+  state before it. That asymmetry is expected and must be visible in the UI.
+
+Attribution is required by ODC-By: footer → "Match data © Cricsheet (ODC-By)".
+
+### 7.6 Live mode and the free-tier reality
+
+Research verdict: **no free tier supports a continuously running ball-by-ball feed.**
+
+| Provider | Free allowance | Ball-by-ball | Verdict |
+|---|---|---|---|
+| **Cricsheet** | unlimited (archive) | yes (historical) | ✅ the replay backbone |
+| **CricketData.org** (ex-CricAPI) | 100 hits/day | advertised | ⚠️ demo-only; personal/non-commercial terms; ~30 s lag |
+| **Highlightly** | 100 req/day | no per-ball endpoint documented | ⚠️ scorecard only |
+| **Roanuz** | sample keys, free licence unclear | yes | ⚠️ needs contact |
+| **Sportmonks** | 14-day trial, €29/mo | yes + commentary | 💰 first real upgrade |
+| **Sportradar** | 30-day trial, 1,000 req/30 days | yes + play-by-play | 💰 enterprise |
+
+Quota math for CricAPI (100/day):
+
+- 10 s polling → 8,640 requests/day → **86× over budget** (this is what the current code would do).
+- 60 s polling → 1,440/day → still over.
+- 90 s polling, one match, one viewer, quota guard at 90 hits → **≈90 minutes of watching/day**.
+
+So live mode is explicitly a **90-minute demo window**, not the default experience:
+
+1. **Single upstream poller, fan-out to all clients.** One `getScore` call per TTL serves N tabs.
+   This is the only way a free key survives, and it is also the architecture a paid feed needs.
+2. **Quota guard:** in-memory daily counter; at 90 hits the provider returns
+   `{ ok:false, reason:'quota' }` and the UI falls back to replay with an explicit banner.
+3. **Event synthesis:** CricAPI gives a scorecard, not deliveries. Diff successive snapshots and
+   emit `score_update` events (runs delta, wicket delta, new over) with `evidence: 'derived'`.
+   The UI must show these as "score update", never as a fabricated ball with commentary.
+4. **Cadence:** 90 s, and only while the tab is visible (`document.visibilityState`).
+5. **Key setup (decided):** sign up at cricketdata.org → copy the key → set `CRICAPI_API_KEY`
+   in Vercel env vars and `.env.local` locally. Never in `js/config.js` for the hosted build.
+   **Before wiring the UI:** capture one raw `match_scorecard` response into
+   `tests/fixtures/cricapi-scorecard.json` and assert the parser against it, because whether
+   the free tier actually includes delivery-level data is still unverified. If it does not,
+   the live mode ships as score-delta events only (point 3 above) — that is an acceptable
+   outcome, not a failure.
+
+### 7.7 What makes a real feed swap seamless
+
+A new provider is accepted when it can supply:
+
+- a stable match id + teams/venue/date + status;
+- an ordered stream of delivery-level facts with a monotonic cursor (Sportradar `match timeline`,
+  SportMonks `ball-by-ball` both do);
+- a resumable cursor (`since`/`sequence`/`last_updated`) and a snapshot endpoint.
+
+Mapping work is then confined to one file: `api/providers/<vendor>.mjs` → `FeedEvent[]`.
+No UI, engine, or prompt changes are allowed in that PR — that is the acceptance test for the seam.
+
+### 7.8 Files and phases
+
+| Phase | Files | Acceptance |
+|---|---|---|
+| **P0** | `scripts/cricsheet-probe.mjs` (done), `data/matches/*.json`, `scripts/fetch-cricsheet.mjs`, `package.json` script | Probe prints events + timings; 8–12 curated matches vendored with attribution |
+| **P1** | `api/feed.mjs`, `api/providers/{scripted,replay}.mjs` | `sinceSeq` returns only newer events; `seq` monotonic; 204 when idle; snapshot matches last event |
+| **P2** | `js/feed-client.js`, `js/match-engine.js` (facade only), `js/app.js`, `js/match-switcher.js` | One render path; Replay column; starts at `seq 1`; speed presets 1×/4×/8×/20×; skip-to-innings-2; AI buttons work at every seq |
+| **P3** | `api/providers/cricapi.mjs`, `api/feed.mjs` quota guard + TTL cache | 90 s cadence, one upstream call per TTL across tabs, clean `quota` fallback |
+| **P4** | `api/providers/sportmonks.mjs` (stub, no key) | Drop-in proof: swap provider via env var, zero client changes |
+
+`MatchEngine` keeps its public surface (`getMatchState`, `getBallsPlayed`, `getLastNBalls`,
+`getKeyMoments`, `getMatchSummary`, `play/pause/setSpeed`) so the AI layer and DOM code need no
+rewrite. Internally it holds the event log and derives state from it.
+
+### 7.9 Verification already performed
+
+`node scripts/cricsheet-probe.mjs` and a full-archive pass on 2026-10-18:
+
+```
+checked=1243 failed=0
+seq monotonic in every match
+every running score == sum of delivery runs (per innings)
+wickets <= 10 in every event
+sample: GT vs RCB, IPL 2026 final → 235 events, 111 min at 1x, final 161/5
+```
+
+Still unverified (needs signup): CricAPI free-key latency, ball-by-ball payload shape, and
+whether the 100/day tier really includes deliveries. Do not claim live ball-by-ball until a key
+is in hand and `/api/feed` has been exercised against it.
+
+### 7.10 Match length, storage, and the AI context budget
+
+**Decision: store every delivery of every curated match. Do not cap or fractionally store the
+match. Cap what is sent to the model.**
+
+Measured on two real IPL matches (chars/4 token estimate), because the constraint turned out
+to be the opposite of what it looked like:
+
+| Projection | Size | Tokens |
+|---|---|---|
+| State snapshot | 40 B | ~10 |
+| Last 12 balls (text) | 390 B | ~100 |
+| Over-by-over digest, 38 overs | 1.6 KB | **~410** |
+| Key moments only, 56 events | 2.2 KB | **~540** |
+| **Full ball-by-ball log, 233 deliveries** | **11 KB** | **~2,800** |
+| Raw Cricsheet JSON | 36 KB | ~9,300 |
+| Normalized `FeedEvent[]` JSON | 96 KB | ~24,600 |
+
+A whole T20 handed to the model as **plain text is ~2.8k tokens** — comfortably inside any
+modern context window. The expense is in the *serialization*, not the match: dumping
+`FeedEvent[]` JSON costs 8.8× more than rendering the same facts as lines. So:
+
+1. **Never send JSON to the model.** Render the log as `"3.4 B Kumar to Sudharsan, OUT! …"` lines.
+2. **Storage is a non-issue.** ~88 KB per normalized match; 12 curated matches ≈ 1 MB. The
+   full 1,243-match IPL archive (105 MB) is what you avoid vendoring — not a single match.
+3. **A 20-over cap is rejected.** Half a T20 cannot reproduce the scorecard (you cannot derive
+   161/5 from 20 overs), and it deletes exactly the death-overs drama the app is selling.
+   Fractions/segments only make sense for formats that genuinely do not fit — see the ladder.
+4. **Cost is driven by call count, not call size.** 2.8k tokens × 100 calls/day ≈ 280k tokens.
+   The binding limit is requests-per-day, so: one AI call per explicit button press, and
+   **cache the answer keyed by `matchId:seq:feature`** — re-asking at the same ball is free.
+
+#### The context ladder (implement once, use for every request)
+
+Build the prompt from the largest projection that fits `CONTEXT_BUDGET` (default **3,500
+tokens**), never by truncating mid-log:
+
+```
+1. state snapshot          (~10 tok)   always
+2. + last 12 deliveries    (~100 tok)  always
+3. + key moments list      (~550 tok)  always
+4. + over-by-over digest   (~420 tok)  when the match started before the user's window
+5. + full ball log         (~2,800)    only if all of the above fit AND the question is
+                                       ball-specific ("what happened in over 4?")
+```
+
+Formats that exceed the budget fall back to the digest, then to innings-level summaries:
+T20 ≈ 2.8k (fits) · ODI ≈ 7k (digest) · Test ≈ 60k+ (innings digest + session summaries).
+The demo only vendors T20s, so the full log always fits — but the ladder means adding an ODI
+fixture later is data, not code.
+
+**"Ask Anything" retrieval:** for ball-specific questions, select windows by entity instead of
+sending everything — mention of a player → their overs; "17th over" → that over ±1; "the
+collapse" → the over with the most wickets. This keeps the multi-turn chat cheap and accurate.
+
+**UI honesty rule:** any AI answer generated from a digest (not the full log) is still fully
+factual, because the digest is derived from the same events. The only thing reduced is
+granularity, never correctness.

@@ -250,51 +250,104 @@ class SimulatedProvider extends MatchProvider {
     } else {  
       this.start(this.onBallPlayed, this.onMatchEnd);  
     }  
-  }  
+  }  /**
+   * Legal deliveries bowled so far. Overs must be derived from this, not from the
+   * last ball's label: after the sixth legal ball the label still reads "0.6",
+   * but the scorecard has to say "1.0" (that is how cricket scores are written).
+   */
+  getLegalBallsPlayed() {
+    let legal = 0;
+    for (const b of this.getBallsPlayed()) {
+      if (b.extraType !== 'wide' && b.extraType !== 'noball') legal += 1;
+    }
+    return legal;
+  }
+
+  /**
+   * Overs as a scorecard string (legalBalls / 6, remainder as the decimal part).
+   */
+  getOversDisplay() {
+    const legal = this.getLegalBallsPlayed();
+    return `${Math.floor(legal / 6)}.${legal % 6}`;
+  }
+
+  /**
+   * Deliveries from the start of the innings up to and including `index`.
+   * Everything the UI or the AI can say about ball N is built from this slice,
+   * which is what makes "What just happened" work on an earlier ball without
+   * leaking anything that came after it.
+   */
+  getBallsUpTo(index) {
+    if (index === undefined || index < 0) return [];
+    const last = Math.min(Math.round(index), this.totalBalls - 1);
+    return this.balls.slice(0, last + 1);
+  }
+
+  /** Legal deliveries inside getBallsUpTo(index). */
+  getLegalBallsUpTo(index) {
+    let legal = 0;
+    for (const b of this.getBallsUpTo(index)) {
+      if (b.extraType !== 'wide' && b.extraType !== 'noball') legal += 1;
+    }
+    return legal;
+  }
+
+  /** Overs string for an arbitrary position (legalBalls / 6). */
+  formatOvers(legalBalls) {
+    return `${Math.floor(legalBalls / 6)}.${legalBalls % 6}`;
+  }
+
+  /**
+   * Deterministic state at any delivery index. Used for scrubbing and for
+   * answering questions about a past ball.
+   */
+  getStateAtIndex(index) {
+    const innings = (this.matchData && this.matchData.innings && this.matchData.innings[0]) || {};
+    const battingTeam = innings.battingTeam || "CSK";
+    const bowlingTeam = innings.bowlingTeam || "MI";
+
+    if (index === undefined || index < 0) {
+      return {
+        score: 0,
+        wickets: 0,
+        oversDisplay: "0.0",
+        battingTeam,
+        bowlingTeam,
+        currentBatsmen: { striker: null, nonStriker: null },
+        currentBowler: null,
+        ballsPlayed: 0,
+        ballIndex: -1,
+        isLive: false,
+        isDemo: true
+      };
+    }
+
+    const bounded = Math.min(Math.round(index), this.totalBalls - 1);
+    const ball = this.balls[bounded];
+    return {
+      score: ball.totalScore,
+      wickets: ball.totalWickets,
+      oversDisplay: this.formatOvers(this.getLegalBallsUpTo(bounded)),
+      battingTeam,
+      bowlingTeam,
+      currentBatsmen: {
+        striker: ball.batsmanOnStrike,
+        nonStriker: ball.batsmanNonStrike
+      },
+      currentBowler: ball.bowler,
+      ballsPlayed: bounded + 1,
+      ballIndex: bounded,
+      isLive: false,
+      isDemo: true
+    };
+  }
 
   /**  
    * Get current match state.  
    */  
   getMatchState() {  
-    const innings = (this.matchData && this.matchData.innings && this.matchData.innings[0]) || {};  
-    const battingTeam = innings.battingTeam || "CSK";  
-    const bowlingTeam = innings.bowlingTeam || "MI";  
-
-    if (this.currentBallIndex === -1) {  
-      return {  
-        score: 0,  
-        wickets: 0,  
-        oversDisplay: "0.0",  
-        battingTeam,  
-        bowlingTeam,  
-        currentBatsmen: {  
-          striker: null,  
-          nonStriker: null  
-        },  
-        currentBowler: null,  
-        ballsPlayed: 0,  
-        isLive: false,  
-        isDemo: true  
-      };  
-    }  
-
-    const latestBall = this.balls[this.currentBallIndex];  
-    return {  
-      score: latestBall.totalScore,  
-      wickets: latestBall.totalWickets,  
-      oversDisplay: latestBall.overDisplay,  
-      battingTeam,  
-      bowlingTeam,  
-      currentBatsmen: {  
-        striker: latestBall.batsmanOnStrike,  
-        nonStriker: latestBall.batsmanNonStrike  
-      },  
-      currentBowler: latestBall.bowler,  
-      ballsPlayed: this.currentBallIndex + 1,  
-      isLive: false,  
-      isDemo: true  
-    };  
-  }  
+    return this.getStateAtIndex(this.currentBallIndex);
+  }
 
   /**  
    * Upgrade the demo engine: rewind to ball 0 and stop any active playback.  
@@ -322,9 +375,9 @@ class SimulatedProvider extends MatchProvider {
   /**  
    * Get batsman stats.  
    */  
-  getBatsmanStats() {  
+  getBatsmanStats(index) {  
     const stats = {};  
-    const played = this.getBallsPlayed();  
+    const played = index === undefined ? this.getBallsPlayed() : this.getBallsUpTo(index);  
 
     for (const b of played) {  
       if (b.batsmanOnStrike && !stats[b.batsmanOnStrike]) {  
@@ -391,9 +444,9 @@ class SimulatedProvider extends MatchProvider {
   /**  
    * Get bowler figures.  
    */  
-  getBowlerStats() {  
+  getBowlerStats(index) {  
     const stats = {};  
-    const played = this.getBallsPlayed();  
+    const played = index === undefined ? this.getBallsPlayed() : this.getBallsUpTo(index);  
     const bowlerOvers = {};  
 
     for (const b of played) {  
@@ -476,7 +529,7 @@ class SimulatedProvider extends MatchProvider {
 
     const score = latestBall.totalScore;  
     const wickets = latestBall.totalWickets;  
-    const oversDisplay = latestBall.overDisplay;  
+    const oversDisplay = this.getOversDisplay();  
 
     const formatBoundaries = (fours, sixes) => {  
       const parts = [];  
@@ -580,6 +633,7 @@ class LivePollingProvider {
     this.pollInterval = options.pollInterval || 5000;  
     this.pollTimer = null;  
     this.isPolling = false;  
+    this.active = false;       // false once stop() is called, even mid first fetch
     this.onStateUpdate = null;  // callback(state)   
     this.onMatchEnd = null;
     this.matchId = null;  
@@ -631,16 +685,19 @@ class LivePollingProvider {
     }  
 
     // Initial fetch, then periodic updates. runInitial handles "match over" once.
+    // `active` guards the async gap: stop() during the first fetch must not leave
+    // a timer running afterwards (that would keep burning CricAPI quota unseen).
+    this.active = true;
     const initial = this.fetchMatchUpdates();
     if (initial && typeof initial.then === 'function') {
       initial.then(() => {
-        if (this.isPolling) return;
+        if (!this.active || this.isPolling) return;
         this.isPolling = true;
         this.pollTimer = setInterval(() => {  
           this.fetchMatchUpdates();  
         }, this.pollInterval);  
       });
-    } else {
+    } else if (this.active) {
       this.isPolling = true;
       this.pollTimer = setInterval(() => {  
         this.fetchMatchUpdates();  
@@ -652,6 +709,7 @@ class LivePollingProvider {
    * Stop polling.  
    */  
   stop() {  
+    this.active = false;
     if (this.pollTimer) {  
       clearInterval(this.pollTimer);  
       this.pollTimer = null;  
@@ -832,9 +890,11 @@ class MatchEngine {
       }  
       this.liveProvider.start();  
     } else {  
-      this.simulatedProvider.start(this.onBallPlayed.bind(this), this.onMatchEnd.bind(this));  
+      const onBall = typeof this.onBallPlayed === 'function' ? this.onBallPlayed : null;  
+      const onEnd = typeof this.onMatchEnd === 'function' ? this.onMatchEnd : null;  
+      this.simulatedProvider.start(onBall, onEnd);  
     }  
-  }  
+  }
 
   /**  
    * Stop playback/polling.  
@@ -868,14 +928,34 @@ class MatchEngine {
 
   /**  
    * Advance simulation by one ball (or fetch live updates).  
+   *  
+   * The provider only learns its callbacks inside start(), so stepping with  
+   * "Next ball" before ever pressing Play used to advance the index in silence  
+   * (nothing rendered, and Play then resumed mid-match). Keep the provider in  
+   * sync here so a manual step always reaches the UI.  
    */  
   nextBall() {  
     if (this.mode === 'live') {  
       this.liveProvider.fetchMatchUpdates();  
       return null;  
     }  
+    this.syncProviderCallbacks();  
     return this.simulatedProvider.nextDelivery();  
   }  
+
+  /**  
+   * Push the facade's callbacks onto the active scripted provider.  
+   */  
+  syncProviderCallbacks() {  
+    const provider = this.simulatedProvider;  
+    if (!provider) return;  
+    if (typeof this.onBallPlayed === 'function') {  
+      provider.onBallPlayed = this.onBallPlayed;  
+    }  
+    if (typeof this.onMatchEnd === 'function') {  
+      provider.onMatchEnd = this.onMatchEnd;  
+    }  
+  }
 
   /**  
    * Update playback speed. Demo mode: ms between balls. Live mode: ms between API polls.
@@ -905,6 +985,52 @@ class MatchEngine {
   getMatchState() {  
     return this.currentProvider.getMatchState();  
   }  
+
+  /**
+   * State at an arbitrary delivery index (scripted replays only). Falls back to
+   * the current state for providers that cannot rewind.
+   */
+  getStateAtIndex(index) {
+    const provider = this.currentProvider;
+    if (provider && typeof provider.getStateAtIndex === 'function') {
+      return provider.getStateAtIndex(index);
+    }
+    return this.getMatchState();
+  }
+
+  /**
+   * Deliveries from ball one up to `index` (scripted replays only).
+   */
+  getBallsUpTo(index) {
+    const provider = this.currentProvider;
+    if (provider && typeof provider.getBallsUpTo === 'function') {
+      return provider.getBallsUpTo(index);
+    }
+    return this.getBallsPlayed();
+  }
+
+  /**
+   * Legal deliveries bowled so far, when the active provider tracks deliveries.
+   */
+  getLegalBallsPlayed() {
+    const provider = this.currentProvider;
+    if (provider && typeof provider.getLegalBallsPlayed === 'function') {
+      return provider.getLegalBallsPlayed();
+    }
+    return 0;
+  }
+
+  /**
+   * Overs as a scorecard string for the active provider.
+   */
+  getOversDisplay() {
+    const provider = this.currentProvider;
+    if (provider && typeof provider.getOversDisplay === 'function') {
+      return provider.getOversDisplay();
+    }
+    const state = provider ? provider.getMatchState() : null;
+    return (state && (state.oversDisplay || state.overs)) || '0.0';
+  }
 
   /**  
    * Get match metadata.  
@@ -942,17 +1068,17 @@ class MatchEngine {
   }  
 
   /**  
-   * Get batsman stats.  
+   * Get batsman stats. Optional index rewinds to that delivery (replay only).  
    */  
-  getBatsmanStats() {  
-    return this.currentProvider.getBatsmanStats();  
+  getBatsmanStats(index) {  
+    return this.currentProvider.getBatsmanStats(index);  
   }  
 
   /**  
-   * Get bowler figures.  
+   * Get bowler figures. Optional index rewinds to that delivery (replay only).  
    */  
-  getBowlerStats() {  
-    return this.currentProvider.getBowlerStats();  
+  getBowlerStats(index) {  
+    return this.currentProvider.getBowlerStats(index);  
   }  
 
   /**  
@@ -976,7 +1102,7 @@ class MatchEngine {
   setOnMatchEnd(callback) {  
     this.onMatchEnd = callback;  
     this.currentProvider.onMatchEnd = callback;  
-  }  /**
+  }/**
    * Get total balls (from current provider or simulated provider).
    */
   get totalBalls() {

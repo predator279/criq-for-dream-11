@@ -1,5 +1,12 @@
 .vercel/
 node_modules/
-.env
-.env.local
 .idea/
+
+# ---- local secrets (never commit) ----
+.env
+.env.*
+!.env.example
+secrets.toml
+secrets.*.toml
+!secrets.example.toml
+*.local

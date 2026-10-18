@@ -11,6 +11,11 @@ class CricIQApp {
     this.playbackSpeed = 3000; // matches the default Speed dropdown value
     this.el = {}; // DOM refs, populated in bindDOM
     this.lastBallOver = -1;
+    this.ballMenuIndex = null;      // delivery currently showing options
+    this.ballMenuOver = null;
+    this.lastBallMenuAnchor = null;
+    this.askFocusIndex = undefined; // set when a question is scoped to a past ball
+    this.tour = typeof window !== 'undefined' && window.GuidedTour ? new window.GuidedTour() : null;
     this.matchInfo = {
       team1: 'CSK',
       team2: 'MI',
@@ -58,7 +63,7 @@ class CricIQApp {
       'btn-send-ask', 'ai-response', 'ai-loading', 'ai-response-text',
       'api-key-modal', 'api-key-input', 'btn-save-api-key', 'scorecard',
       'ai-card', 'theme-toggle', 'theme-toggle-icon', 'play-icon', 'play-label',
-      'ai-spinner'
+      'ai-spinner', 'btn-help', 'timeline-hint'
     ];
     ids.forEach(id => { this.el[id] = document.getElementById(id); });
     // .scorecard-card has no id attribute in the markup — grab it by class so
@@ -135,7 +140,21 @@ class CricIQApp {
     if (scrollWrapper) {
       scrollWrapper.addEventListener('scroll', () => {
         this.updateTimelineNavButtons();
+        this.syncBallMenuPosition();
       }, { passive: true });
+    }
+
+    // Dismiss the per-ball menu on outside click or Escape; keep it glued to its
+    // ball while the page scrolls so a click target never shifts out from under it.
+    document.addEventListener('click', () => this.closeBallMenu());
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') this.closeBallMenu();
+    });
+    window.addEventListener('scroll', () => this.syncBallMenuPosition(), { passive: true, capture: true });
+    window.addEventListener('resize', () => this.syncBallMenuPosition());
+
+    if (this.el['btn-help'] && this.tour) {
+      this.el['btn-help'].addEventListener('click', () => this.tour.start({ force: true }));
     }
 
     this.el['btn-save-api-key'].addEventListener('click', () => {
@@ -393,7 +412,7 @@ class CricIQApp {
         <span class="over-badge">6.0</span>
         <span class="runs-badge boundary">END</span>
       </div>
-      <p class="commentary-text">End of powerplay — CSK ${this.engine.getMatchState().score}/${this.engine.getMatchState().wickets} after 6 overs. Select "What happened" or "Catch me up" for instant AI analysis.</p>`;
+      <p class="commentary-text">End of powerplay — CSK ${this.engine.getMatchState().score}/${this.engine.getMatchState().wickets} after 6 overs. Select "What just happened" or "Catch me up" for instant AI analysis.</p>`;
     this.el['commentary-feed'].prepend(entry);
   }
 
@@ -407,20 +426,27 @@ class CricIQApp {
 
   updateScorecard(ball) {
     this.el['team-score'].textContent = `${ball.totalScore}/${ball.totalWickets}`;
-    this.el['team-overs'].textContent = `(${ball.overDisplay} ov)`;
+    // Overs come from the engine (legal deliveries / 6), not the ball label:
+    // the sixth ball of an over is "0.6" but the scorecard must read "1.0".
+    const overs = typeof this.engine.getOversDisplay === 'function'
+      ? this.engine.getOversDisplay()
+      : ball.overDisplay;
+    this.el['team-overs'].textContent = `(${overs} ov)`;
 
     const batsmanStats = this.engine.getBatsmanStats();
     const striker = batsmanStats[ball.batsmanOnStrike];
     const nonStriker = batsmanStats[ball.batsmanNonStrike];
 
-    const fmt = (s, notOut) => {
+    const fmt = (s) => {
       if (!s) return '';
-      const star = notOut ? '*' : '';
+      // Dismissed batters keep no asterisk: on a wicket ball the striker is the
+      // player who just got out, and marking them not-out reads as a bug.
+      const star = s.isOut ? '' : '*';
       return `${s.name} ${s.runs}${star} (${s.balls})`;
     };
     this.el['batsman-strike'].innerHTML =
-      `<span class="strike-marker">●</span> ${fmt(striker, true)}`;
-    this.el['batsman-nonstrike'].textContent = fmt(nonStriker, true);
+      `<span class="strike-marker">●</span> ${fmt(striker)}`;
+    this.el['batsman-nonstrike'].textContent = fmt(nonStriker);
 
     const bowlerStats = this.engine.getBowlerStats();
     const b = bowlerStats[ball.bowler];
@@ -477,9 +503,30 @@ class CricIQApp {
     }
 
     const circle = document.createElement('div');
-    circle.className = 'ball-circle pop-in ' + this.ballTypeClass(ball);
+    circle.className = 'ball-circle pop-in ball-clickable ' + this.ballTypeClass(ball);
     circle.textContent = this.ballDisplayText(ball);
     circle.title = `${ball.overDisplay} · ${ball.bowler} to ${ball.batsmanOnStrike}`;
+    circle.dataset.ballIndex = String(index);
+    circle.dataset.over = ball.overDisplay;
+    circle.setAttribute('role', 'button');
+    circle.tabIndex = 0;
+    circle.setAttribute('aria-label',
+      `Ball ${ball.overDisplay}, ${ball.bowler} to ${ball.batsmanOnStrike}, ${this.ballOutcomeLabel(ball)}. Open options.`);
+
+    // Every delivered ball can be asked about, not just the latest one. The
+    // context for a past ball stops at that ball (no spoilers).
+    const openMenu = (event) => {
+      event.stopPropagation();
+      this.openBallMenu(circle, index);
+    };
+    circle.addEventListener('click', openMenu);
+    circle.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        openMenu(event);
+      }
+    });
+
     overGroup.appendChild(circle);
 
     // Smoothly scroll the container to bring the active over into focus
@@ -520,6 +567,144 @@ class CricIQApp {
     if (ball.extraType === 'noball') return 'nb';
     if (ball.extraType) return String(ball.extras);
     return String(ball.runs);
+  }
+
+  /** Plain-language outcome, used for screen readers and the ball menu header. */
+  ballOutcomeLabel(ball) {
+    if (ball.isWicket) {
+      return ball.wicketType ? `wicket, ${String(ball.wicketType).replace(/_/g, ' ')}` : 'wicket';
+    }
+    if (ball.extraType) {
+      return `${ball.extraType}, ${ball.extras || 0} extra${(ball.extras || 0) === 1 ? '' : 's'}`;
+    }
+    if (ball.isSix) return 'six';
+    if (ball.isBoundary) return 'four';
+    if (!ball.runs) return 'no run';
+    return `${ball.runs} run${ball.runs === 1 ? '' : 's'}`;
+  }
+
+  /* --------------------------- Per-ball menu --------------------------- */
+
+  ensureBallMenu() {
+    let menu = document.getElementById('ball-menu');
+    if (menu) return menu;
+
+    menu = document.createElement('div');
+    menu.id = 'ball-menu';
+    menu.className = 'ball-menu';
+    menu.setAttribute('role', 'menu');
+    menu.innerHTML = `
+      <div class="ball-menu-head">
+        <span id="ball-menu-title" class="ball-menu-title"></span>
+        <button id="ball-menu-close" class="ball-menu-close" aria-label="Close ball options">×</button>
+      </div>
+      <button id="ball-menu-explain" class="ball-menu-option" role="menuitem">
+        <span class="ball-menu-label">What just happened</span>
+        <span class="ball-menu-hint">AI explains this ball</span>
+      </button>
+      <button id="ball-menu-ask" class="ball-menu-option" role="menuitem">
+        <span class="ball-menu-label">Ask about this ball</span>
+        <span class="ball-menu-hint">Write your own question</span>
+      </button>`;
+    document.body.appendChild(menu);
+
+    menu.addEventListener('click', (event) => event.stopPropagation());
+    menu.querySelector('#ball-menu-close').addEventListener('click', () => this.closeBallMenu());
+
+    menu.querySelector('#ball-menu-explain').addEventListener('click', () => {
+      const index = this.ballMenuIndex;
+      this.closeBallMenu();
+      this.handleWhatHappened(index);
+    });
+
+    menu.querySelector('#ball-menu-ask').addEventListener('click', () => {
+      const index = this.ballMenuIndex;
+      const over = this.ballMenuOver;
+      this.closeBallMenu();
+      this.askFocusIndex = index;
+      this.el['ask-input-container'].classList.remove('hidden');
+      this.el['ask-input'].value = `What happened on ${over}?`;
+      this.el['ask-input'].focus();
+      this.el['ask-input'].select();
+    });
+
+    return menu;
+  }
+
+  dismissTimelineHint() {
+    const hint = this.el['timeline-hint'] || document.getElementById('timeline-hint');
+    if (hint) hint.classList.add('hidden');
+  }
+
+  openBallMenu(anchor, index) {
+    const ball = this.engine.getBallsUpTo(index).slice(-1)[0];
+    if (!ball) return;
+
+    // Once the fan has discovered the per-ball menu, the hint has done its job.
+    this.dismissTimelineHint();
+
+    const menu = this.ensureBallMenu();
+    this.ballMenuIndex = index;
+    this.ballMenuOver = ball.overDisplay;
+
+    const title = menu.querySelector('#ball-menu-title');
+    title.textContent = `${ball.overDisplay} · ${this.formatBatsmanLabel(ball.bowler)} to ${this.formatBatsmanLabel(ball.batsmanOnStrike)}`;
+
+    menu.classList.add('show');
+    this.lastBallMenuAnchor = anchor;
+    anchor.setAttribute('aria-expanded', 'true');
+    this.positionBallMenu(anchor);
+
+    const first = menu.querySelector('.ball-menu-option');
+    if (first) first.focus({ preventScroll: true });
+  }
+
+  /** Place the menu above its ball when there is room, otherwise below. */
+  positionBallMenu(anchor) {
+    const menu = document.getElementById('ball-menu');
+    if (!menu || !anchor) return;
+
+    const rect = anchor.getBoundingClientRect();
+    const menuRect = menu.getBoundingClientRect();
+    const gap = 8;
+
+    let top = rect.top - menuRect.height - gap;
+    if (top < gap) top = rect.bottom + gap;
+    let left = rect.left + rect.width / 2 - menuRect.width / 2;
+    left = Math.max(gap, Math.min(left, window.innerWidth - menuRect.width - gap));
+
+    menu.style.top = `${Math.round(top)}px`;
+    menu.style.left = `${Math.round(left)}px`;
+  }
+
+  /** Re-anchor after a scroll; close once the ball itself has scrolled away. */
+  syncBallMenuPosition() {
+    const menu = document.getElementById('ball-menu');
+    if (!menu || !menu.classList.contains('show')) return;
+
+    const anchor = this.lastBallMenuAnchor;
+    if (!anchor || !anchor.isConnected) {
+      this.closeBallMenu();
+      return;
+    }
+
+    const rect = anchor.getBoundingClientRect();
+    if (rect.bottom < 0 || rect.top > window.innerHeight) {
+      this.closeBallMenu();
+      return;
+    }
+
+    this.positionBallMenu(anchor);
+  }
+
+  closeBallMenu() {
+    const menu = document.getElementById('ball-menu');
+    if (!menu || !menu.classList.contains('show')) return;
+    menu.classList.remove('show');
+    if (this.lastBallMenuAnchor) {
+      this.lastBallMenuAnchor.removeAttribute('aria-expanded');
+      this.lastBallMenuAnchor = null;
+    }
   }
 
   addCommentaryEntry(ball) {
@@ -636,23 +821,86 @@ class CricIQApp {
     }
   }
 
-  handleWhatHappened() {
+  /**
+   * The single object the AI layer is allowed to read from: deterministic engine
+   * state plus the match metadata it was derived from.
+   */
+  buildAIState(index) {
+    const historical = typeof index === 'number';
+    const state = (historical ? this.engine.getStateAtIndex(index) : this.engine.getMatchState()) || {};
+    const meta = this.engine.getMatchMeta() || {};
+    const balls = historical ? this.engine.getBallsUpTo(index) : this.engine.getBallsPlayed();
+
+    let legalBalls = 0;
+    for (const b of balls) {
+      if (b.extraType !== 'wide' && b.extraType !== 'noball') legalBalls += 1;
+    }
+    const overs = legalBalls / 6;
+    const runs = typeof state.score === 'number' ? state.score : state.runs;
+    const runRate = overs > 0 && typeof runs === 'number'
+      ? Number((runs / overs).toFixed(2))
+      : null;
+
+    return {
+      ...state,
+      score: runs,
+      wickets: typeof state.wickets === 'number' ? state.wickets
+        : (typeof state.wicketsNumber === 'number' ? state.wicketsNumber : state.wickets),
+      oversDisplay: state.oversDisplay || state.overs || '0.0',
+      runRate,
+      match: {
+        team1: meta.team1 && (meta.team1.short || meta.team1.name) || state.battingTeam,
+        team2: meta.team2 && (meta.team2.short || meta.team2.name) || state.bowlingTeam,
+        venue: meta.venue || '',
+        date: meta.date || '',
+        type: meta.type || ''
+      }
+    };
+  }
+
+  /**
+   * Facts the engine computed — never re-derived inside the prompt.
+   */
+  buildAIStats(index) {
+    return {
+      batsmen: this.engine.getBatsmanStats(index),
+      bowlers: this.engine.getBowlerStats(index)
+    };
+  }
+
+  /**
+   * "What just happened" for a specific delivery, or the latest one when no
+   * index is given. A historical index only ever sees events up to that ball.
+   */
+  handleWhatHappened(ballIndex) {
+    const index = typeof ballIndex === 'number' ? ballIndex : undefined;
     if (!this.guardBeforeAI()) return;
-    const state = this.engine.getMatchState();
-    // AI methods are async; keep button handlers non-blocking.
+
+    const balls = index === undefined ? this.engine.getBallsPlayed() : this.engine.getBallsUpTo(index);
+    const keyMoments = this.engine.getKeyMoments().filter(m => balls.includes(m));
+    const focusBall = index === undefined ? null : this.engine.getBallsUpTo(index).slice(-1)[0];
+
     this.runAIFeature(() =>
-      this.assistant.whatHappened(state, this.engine.getLastNBalls(6), this.engine.getKeyMoments())
+      this.assistant.whatHappened({
+        state: this.buildAIState(index),
+        balls,
+        keyMoments,
+        stats: this.buildAIStats(index),
+        focusBall
+      })
     );
   }
 
   handleCatchMeUp() {
     if (!this.guardBeforeAI()) return;
     this.runAIFeature(() =>
-      this.assistant.catchMeUp(
-        this.engine.getMatchSummary(),
-        this.engine.getBallsPlayed(),
-        this.engine.getKeyMoments()
-      )
+      this.assistant.catchMeUp({
+        state: this.buildAIState(),
+        balls: this.engine.getBallsPlayed(),
+        keyMoments: this.engine.getKeyMoments(),
+        stats: this.buildAIStats(),
+        summary: this.engine.getMatchSummary()
+      })
     );
   }
 
@@ -667,18 +915,31 @@ class CricIQApp {
 
     const q = question;
     this.el['ask-input'].value = '';
-    
-    // Pass conversation history if available
+
+    // A question opened from a past ball is scoped to that ball.
+    const focusIndex = typeof this.askFocusIndex === 'number' ? this.askFocusIndex : undefined;
+    this.askFocusIndex = undefined;
+
+    const balls = focusIndex === undefined ? this.engine.getBallsPlayed() : this.engine.getBallsUpTo(focusIndex);
+    const focusBall = focusIndex === undefined ? null : balls.slice(-1)[0];
+
     const history = this.assistant.conversationHistory || [];
     this.runAIFeature(async () => {
-      const response = await this.assistant.askAnything(q, this.engine.getMatchSummary(), this.engine.getBallsPlayed(), this.engine.getKeyMoments(), history);
-      // Save to history
+      const response = await this.assistant.askAnything(q, {
+        state: this.buildAIState(focusIndex),
+        balls,
+        keyMoments: this.engine.getKeyMoments().filter(m => balls.includes(m)),
+        stats: this.buildAIStats(focusIndex),
+        summary: this.engine.getMatchSummary(),
+        focusBall,
+        history
+      });
+
       if (!this.assistant.conversationHistory) {
         this.assistant.conversationHistory = [];
       }
       this.assistant.conversationHistory.push({ role: 'user', content: q });
       this.assistant.conversationHistory.push({ role: 'assistant', content: response });
-      // Keep last 10 messages
       if (this.assistant.conversationHistory.length > 10) {
         this.assistant.conversationHistory = this.assistant.conversationHistory.slice(-10);
       }
@@ -742,6 +1003,11 @@ window.addEventListener('DOMContentLoaded', () => {
     app.switcher = new MatchSwitcher(app);
     app.switcher.bindDOM();
     app.switcher.fetchMatches();
+  }
+
+  // First visit: explain the interface in place. Replayable from the "?" button.
+  if (app.tour && !app.tour.hasSeen()) {
+    setTimeout(() => app.tour.start(), 700);
   }
 
   // Update match info periodically for live mode

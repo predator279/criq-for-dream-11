@@ -1523,3 +1523,318 @@ h1 {
     color 0.2s ease, box-shadow 0.2s ease;
 }
 
+
+/* ---- Per-ball options menu (click a delivery in the timeline) ---- */
+.ball-circle.ball-clickable {
+  cursor: pointer;
+}
+
+.ball-circle.ball-clickable:focus-visible {
+  outline: 2px solid var(--accent-lime);
+  outline-offset: 2px;
+}
+
+.ball-circle[aria-expanded="true"] {
+  box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--accent-lime);
+}
+
+.ball-menu {
+  position: fixed;
+  z-index: 1200;
+  width: 236px;
+  padding: 6px;
+  border-radius: var(--radius);
+  background: var(--surface-raised);
+  border: 1px solid var(--hairline-strong);
+  box-shadow: var(--shadow-card-hover), 0 18px 40px -12px rgba(16, 24, 40, 0.28);
+  display: none;
+  flex-direction: column;
+  gap: 2px;
+  opacity: 0;
+  transform: translateY(4px);
+  transition: opacity 0.14s ease, transform 0.14s ease;
+}
+
+.ball-menu.show {
+  display: flex;
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.ball-menu-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 6px 6px;
+}
+
+.ball-menu-title {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  font-family: var(--font-mono);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ball-menu-close {
+  border: none;
+  background: transparent;
+  color: var(--ink-3);
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 5px;
+  border-radius: var(--radius-xs);
+}
+
+.ball-menu-close:hover {
+  color: var(--ink);
+  background: var(--accent-soft);
+}
+
+.ball-menu-option {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  text-align: left;
+  padding: 8px 10px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+  font-family: var(--font-sans);
+}
+
+.ball-menu-option:hover,
+.ball-menu-option:focus-visible {
+  background: var(--accent-soft);
+  outline: none;
+}
+
+.ball-menu-label {
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.ball-menu-hint {
+  font-size: 0.7rem;
+  color: var(--ink-3);
+}
+
+[data-theme="dark"] .ball-menu {
+  box-shadow: var(--shadow-card-hover), 0 18px 40px -12px rgba(0, 0, 0, 0.6);
+}
+
+/* ---- First-run guided tour ---- */
+.tour-root {
+  position: fixed;
+  inset: 0;
+  z-index: 1500;
+  pointer-events: none;
+}
+
+.tour-spotlight {
+  position: fixed;
+  box-sizing: border-box;
+  border: 2px solid var(--accent-lime);
+  border-radius: 14px;
+  box-shadow: 0 0 0 9999px rgba(8, 12, 20, 0.62);
+  pointer-events: none;
+  transition: top 0.28s ease, left 0.28s ease, width 0.28s ease, height 0.28s ease;
+}
+
+.tour-card {
+  position: fixed;
+  z-index: 1501;
+  box-sizing: border-box;
+  width: 340px;
+  padding: 16px;
+  border-radius: var(--radius-lg);
+  background: var(--surface-raised);
+  color: var(--ink);
+  border: 1px solid var(--hairline-strong);
+  box-shadow: var(--shadow-card-hover), 0 24px 48px -16px rgba(16, 24, 40, 0.35);
+  font-family: var(--font-sans);
+  pointer-events: auto;
+  opacity: 0;
+  transform: translateY(6px);
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+.tour-visible .tour-card {
+  opacity: 1;
+  transform: none;
+}
+
+.tour-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.tour-count {
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-4);
+}
+
+.tour-skip {
+  border: none;
+  background: transparent;
+  color: var(--ink-3);
+  font-family: var(--font-sans);
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: var(--radius-xs);
+}
+
+.tour-skip:hover {
+  color: var(--ink);
+  background: var(--accent-soft);
+}
+
+.tour-title {
+  margin: 0 0 6px;
+  font-family: var(--font-serif);
+  font-size: 1.12rem;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.tour-body {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: var(--ink-2);
+}
+
+.tour-card-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.tour-dots {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.tour-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--hairline-strong);
+  transition: width 0.18s ease, background 0.18s ease;
+}
+
+.tour-dot.active {
+  width: 16px;
+  border-radius: 3px;
+  background: var(--accent-lime);
+}
+
+.tour-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tour-btn {
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  padding: 7px 12px;
+  font-family: var(--font-sans);
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, opacity 0.15s ease;
+}
+
+.tour-btn-ghost {
+  background: transparent;
+  border-color: var(--hairline-strong);
+  color: var(--ink-2);
+}
+
+.tour-btn-ghost:hover:not(:disabled) {
+  background: var(--accent-soft);
+}
+
+.tour-btn-ghost:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.tour-btn-primary {
+  background: var(--accent-lime);
+  color: var(--accent-lime-ink);
+}
+
+.tour-btn-primary:hover {
+  background: var(--accent-lime-hover);
+}
+
+.tour-btn:focus-visible,
+.tour-skip:focus-visible {
+  outline: 2px solid var(--accent-lime);
+  outline-offset: 2px;
+}
+
+.tour-card:focus {
+  outline: none;
+}
+
+/* Hint under the timeline, dismissed after the first per-ball click */
+.timeline-hint {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 10px 2px 0;
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--ink-3);
+}
+
+.timeline-hint.hidden {
+  display: none;
+}
+
+.timeline-hint svg {
+  color: var(--accent-lime);
+  flex-shrink: 0;
+}
+
+[data-theme="dark"] .tour-card {
+  box-shadow: var(--shadow-card-hover), 0 24px 48px -16px rgba(0, 0, 0, 0.7);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tour-spotlight,
+  .tour-card,
+  .tour-dot {
+    transition: none;
+  }
+}
+
+/* Keep the timeline track visible before the first ball, so the tour can point at it */
+.ball-timeline {
+  min-height: 34px;
+  align-items: center;
+}

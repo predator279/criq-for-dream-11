@@ -19,6 +19,8 @@ import { readFile } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+// Load gitignored local secrets first (.env.local, then secrets.toml, then .env).
+import { loadedEnvFiles } from './scripts/load-env.mjs';
 import aiHandler from './api/ai.mjs';
 import liveMatchHandler from './api/live-match.mjs';
 
@@ -121,5 +123,17 @@ const server = http.createServer(async (req, res) => {
 
 server.listen(PORT, () => {
   const cricapi = process.env.CRICAPI_API_KEY ? 'CricAPI key detected → live matches enabled' : 'no CRICAPI_API_KEY → demo mode only';
-  console.log(`CricIQ dev server → http://localhost:${PORT} (${cricapi})`);
+  const gemini = process.env.GEMINI_API_KEY ? 'Gemini key detected' : 'no GEMINI_API_KEY → AI unavailable';
+  const groq = process.env.GROQ_API_KEY ? 'Groq fallback detected' : 'no GROQ_API_KEY fallback';
+
+  // File names and variable names only — values are never logged.
+  const sources = loadedEnvFiles.length
+    ? loadedEnvFiles
+        .map(entry => `${entry.file}${entry.keys.length ? ` (${entry.keys.join(', ')})` : ' (present, no values set)'}`)
+        .join(' + ')
+    : 'no local secrets file found';
+
+  console.log(`CricIQ dev server → http://localhost:${PORT}`);
+  console.log(`  secrets: ${sources}`);
+  console.log(`  ${gemini} · ${groq} · ${cricapi}`);
 });
