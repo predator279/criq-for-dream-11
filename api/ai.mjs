@@ -26,7 +26,8 @@ export default async function handler(req, res) {
       app: 'CricIQ',
       providers: {
         gemini: Boolean(process.env.GEMINI_API_KEY),
-        groq: Boolean(process.env.GROQ_API_KEY)
+        groq: Boolean(process.env.GROQ_API_KEY),
+        cricapi: Boolean((process.env.CRICAPI_API_KEY || '').trim())
       }
     });
   }

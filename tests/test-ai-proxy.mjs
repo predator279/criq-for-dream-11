@@ -77,4 +77,23 @@ async function run(method, body, env) {
   console.log('✅ no keys → falls through Gemini to Groq, then 502 with clear message');
 }
 
+// 6. Health check reports the CricAPI key state too (value never returned)
+{
+  const saved = process.env.CRICAPI_API_KEY;
+  try {
+    delete process.env.CRICAPI_API_KEY;
+    let res = await run('GET', undefined, {});
+    assert.strictEqual(res.body.providers.cricapi, false, 'cricapi should read false when unset');
+
+    process.env.CRICAPI_API_KEY = 'dummy-cricapi-value';
+    res = await run('GET', undefined, {});
+    assert.strictEqual(res.body.providers.cricapi, true, 'cricapi should read true when set');
+    assert.ok(!JSON.stringify(res.body).includes('dummy-cricapi-value'), 'health check leaked the key');
+    console.log('✅ health check reports cricapi presence without leaking it');
+  } finally {
+    if (saved === undefined) delete process.env.CRICAPI_API_KEY;
+    else process.env.CRICAPI_API_KEY = saved;
+  }
+}
+
 console.log('✅ all api/ai.mjs control-flow tests passed');

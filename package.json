@@ -9,7 +9,7 @@
   "scripts": {
     "dev": "node server.mjs",
     "start": "node server.mjs",
-    "test": "node tests/verify-data.js && node tests/test-engine-state.mjs && node tests/test-ai-context.mjs && node tests/test-tour.mjs && node tests/test-env-loader.mjs && node tests/test-ai-proxy.mjs",
+    "test": "node tests/verify-data.js && node tests/test-engine-state.mjs && node tests/test-ai-context.mjs && node tests/test-tour.mjs && node tests/test-env-loader.mjs && node tests/test-live-config.mjs && node tests/test-ai-proxy.mjs",
     "probe:data": "node scripts/cricsheet-probe.mjs"
   },
   "repository": {

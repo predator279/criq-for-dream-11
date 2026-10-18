@@ -108,6 +108,24 @@ COMPLETED columns with real matches:
    …or add `CRICAPI_API_KEY` to Vercel → Settings → Environment Variables on the
    deployed project.
 
+### "Live matches need the CRICAPI_API_KEY" on the deployed site
+
+That banner only appears when the server sees **no usable value** at request time.
+Check what the deployment actually has — this endpoint never returns the key:
+
+```
+https://<your-site>/api/live-match      → { present, configured }
+https://<your-site>/api/ai              → { providers: { gemini, groq, cricapi } }
+```
+
+Reading the result:
+
+| Response | Meaning | Fix |
+|---|---|---|
+| `"present": false` | The variable is not on this deployment | Add `CRICAPI_API_KEY` in Vercel → Settings → Environment Variables, tick **Production**, then **redeploy** (env changes do not apply to existing deployments) |
+| `"present": true, "configured": false` | Added, but empty or whitespace | Edit the value — a pasted trailing newline counts as empty |
+| Both `true`, banner still shows | The key is read but CricAPI rejected it | The banner text differs for this case (quota / 401); check the key on cricketdata.org |
+
 The ribbon auto-refreshes every 10 s while a live match is selected; clicking a
 LIVE card starts polling `/api/live-match` and the scorecard updates in place.
 Speed selector: in demo mode it is the ms between balls; with a live match it is

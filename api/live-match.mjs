@@ -252,6 +252,20 @@ function findBowlingTeam(scorecard, battingTeam, match) {
 /* --------------------------------- Handler --------------------------------- */
 
 export default async function handler(req, res) {
+  // Configuration probe: open this URL on the deployed site to see whether the
+  // runtime actually has the key. Distinguishes "never added" from "added but
+  // empty". The value itself is never returned.
+  if (req.method === 'GET') {
+    const raw = process.env.CRICAPI_API_KEY;
+    const value = (raw || '').trim();
+    return res.status(200).json({
+      ok: true,
+      provider: 'cricapi',
+      present: raw !== undefined,
+      configured: value.length > 0
+    });
+  }
+
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed. Use POST.' });
   }
